@@ -15,6 +15,7 @@ setup(
     packages=find_packages(include=["smg.mvdepthnet", "smg.external.*"]),
     include_package_data=True,
     install_requires=[
+        "matplotlib",
         "numpy",
         "opencv-contrib-python==3.4.2.16",
         "torch==1.7.0+cu101",

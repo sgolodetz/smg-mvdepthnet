@@ -102,4 +102,4 @@ class MVDepthEstimator:
         result_image = np.concatenate(
             (left_image, right_image, np_depth), axis=1)
 
-        return result_image
+        return 1.0 / idepth
