@@ -1,0 +1,3 @@
+[submodule "smg/external/mvdepthnet"]
+	path = smg/external/mvdepthnet
+	url = git@github.com:sgolodetz/MVDepthNet.git
