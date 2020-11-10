@@ -2,7 +2,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from smg.mvdepthnet.MVDepthEstimator import MVDepthEstimator
+from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
 
 
 def main():
