@@ -3,18 +3,19 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
+from typing import List
+
 from smg.external.mvdepthnet.depthNet_model import depthNet
-from smg.external.mvdepthnet.visualize import np2Depth
 
 
 class MVDepthEstimator:
-    """TODO"""
+    """An MVDepthNet depth estimator."""
 
     # CONSTRUCTOR
 
     def __init__(self, model_path: str, intrinsics: np.ndarray):
         """
-        TODO
+        Convert an MVDepthNet depth estimator.
 
         :param model_path:  The path to the MVDepthNet model.
         :param intrinsics:  The 3x3 camera intrinsics matrix.
@@ -31,59 +32,40 @@ class MVDepthEstimator:
 
     # PUBLIC METHODS
 
+    # noinspection PyPep8Naming
     def estimate_depth(self, left_image: np.ndarray, right_image: np.ndarray,
                        left_pose: np.ndarray, right_pose: np.ndarray) -> np.ndarray:
         """
-        TODO
+        Estimate a depth image corresponding to the left input image.
 
-        :param left_image:  TODO
-        :param right_image: TODO
-        :param left_pose:   TODO
-        :param right_pose:  TODO
-        :return:            TODO
+        :param left_image:  The left input image.
+        :param right_image: The right input image.
+        :param left_pose:   The camera pose corresponding to the left input image.
+        :param right_pose:  The camera pose corresponding to the right input image.
+        :return:            The estimated depth image corresponding to the left input image.
         """
-        # TODO
-        left2right: np.ndarray = np.dot(np.linalg.inv(right_pose), left_pose)
+        # Note: Borrowed (with mild adaptations) from example2.py in the MVDepthNet code.
 
-        # TODO
-        # for warp the image to construct the cost volume
-        pixel_coordinate = np.indices([320, 256]).astype(np.float32)
-        pixel_coordinate = np.concatenate(
-            (pixel_coordinate, np.ones([1, 320, 256])), axis=0)
-        pixel_coordinate = np.reshape(pixel_coordinate, [3, -1])
+        # Scale the camera intrinsics prior to resizing the input images to 320x256.
+        K: np.ndarray = self.__intrinsics.copy()
+        K[0, :] *= 320.0 / left_image.shape[1]
+        K[1, :] *= 256.0 / left_image.shape[0]
 
-        # scale to 320x256
-        original_width = left_image.shape[1]
-        original_height = left_image.shape[0]
-        factor_x = 320.0 / original_width
-        factor_y = 256.0 / original_height
-
+        # Resize the input images to 320x256.
         left_image = cv2.resize(left_image, (320, 256))
         right_image = cv2.resize(right_image, (320, 256))
-        camera_k = self.__intrinsics.copy()
-        camera_k[0, :] *= factor_x
-        camera_k[1, :] *= factor_y
 
-        # convert to pythorch format
-        torch_left_image = np.moveaxis(left_image, -1, 0)
-        torch_left_image = np.expand_dims(torch_left_image, 0)
-        torch_left_image = (torch_left_image - 81.0) / 35.0
-        torch_right_image = np.moveaxis(right_image, -1, 0)
-        torch_right_image = np.expand_dims(torch_right_image, 0)
-        torch_right_image = (torch_right_image - 81.0) / 35.0
+        # For warping the image to construct the cost volume.
+        pixel_coordinate = np.indices([320, 256]).astype(np.float32)
+        pixel_coordinate = np.concatenate((pixel_coordinate, np.ones([1, 320, 256])), axis=0)
+        pixel_coordinate = np.reshape(pixel_coordinate, [3, -1])
 
-        # process
-        left_image_cuda = torch.Tensor(torch_left_image).cuda()
-        # left_image_cuda = Variable(left_image_cuda, volatile=True)
-
-        right_image_cuda = torch.Tensor(torch_right_image).cuda()
-        # right_image_cuda = Variable(right_image_cuda, volatile=True)
-
+        # Prepare the matrices that need to be passed to the model.
+        left2right: np.ndarray = np.dot(np.linalg.inv(right_pose), left_pose)
         left_in_right_T = left2right[0:3, 3]
         left_in_right_R = left2right[0:3, 0:3]
-        K = camera_k
-        K_inverse = np.linalg.inv(K)
-        KRK_i = K.dot(left_in_right_R.dot(K_inverse))
+        K_inv = np.linalg.inv(K)
+        KRK_i = K.dot(left_in_right_R.dot(K_inv))
         KRKiUV = KRK_i.dot(pixel_coordinate)
         KT = K.dot(left_in_right_T)
         KT = np.expand_dims(KT, -1)
@@ -94,12 +76,37 @@ class MVDepthEstimator:
         KRKiUV_cuda_T = torch.Tensor(KRKiUV).cuda()
         KT_cuda_T = torch.Tensor(KT).cuda()
 
-        predict_depths = self.__model(left_image_cuda, right_image_cuda, KRKiUV_cuda_T, KT_cuda_T)
+        # Run the model.
+        outputs: List[torch.Tensor] = self.__model(
+            MVDepthEstimator.__image_to_cuda_tensor(left_image),
+            MVDepthEstimator.__image_to_cuda_tensor(right_image),
+            KRKiUV_cuda_T, KT_cuda_T
+        )
 
-        # visualize the results
-        idepth = np.squeeze(predict_depths[0].cpu().data.numpy())
-        np_depth = np2Depth(idepth, np.zeros(idepth.shape, dtype=bool))
-        result_image = np.concatenate(
-            (left_image, right_image, np_depth), axis=1)
+        # Get the predicted inverse depth image.
+        inv_depth_image: np.ndarray = np.squeeze(outputs[0].cpu().data.numpy())
 
-        return 1.0 / idepth
+        # Invert and return it.
+        return 1.0 / inv_depth_image
+
+    # PRIVATE STATIC METHODS
+
+    @staticmethod
+    def __image_to_cuda_tensor(image: np.ndarray) -> torch.Tensor:
+        """
+        Convert an image to a CUDA tensor so that it can be passed to the model, normalising it in the process.
+
+        :param image:   The image to convert.
+        :return:        The CUDA tensor.
+        """
+        # Reshape the 256x320x3 image to 3x256x320.
+        torch_image: np.ndarray = np.moveaxis(image, -1, 0)
+
+        # Reshape the 3x256x320 image to 1x3x256x320.
+        torch_image = np.expand_dims(torch_image, 0)
+
+        # Suitably normalise the image for MVDepthNet.
+        torch_image = (torch_image - 81.0) / 35.0
+
+        # Convert the image to a CUDA tensor and return it.
+        return torch.Tensor(torch_image).cuda()
