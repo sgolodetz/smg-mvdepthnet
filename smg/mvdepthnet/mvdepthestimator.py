@@ -15,7 +15,7 @@ class MVDepthEstimator:
 
     def __init__(self, model_path: str, intrinsics: np.ndarray):
         """
-        Convert an MVDepthNet depth estimator.
+        Construct an MVDepthNet depth estimator.
 
         :param model_path:  The path to the MVDepthNet model.
         :param intrinsics:  The 3x3 camera intrinsics matrix.
