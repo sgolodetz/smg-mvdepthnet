@@ -6,6 +6,7 @@ from typing import Dict, Optional
 
 from smg.imagesources import RGBFromRGBDImageSource, RGBImageSource
 from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
+from smg.open3d import VisualisationUtil
 from smg.openni import OpenNICamera, OpenNIRGBDImageSource
 from smg.pyorbslam2 import MonocularTracker
 from smg.rotory import DroneFactory, DroneRGBImageSource
@@ -55,6 +56,7 @@ def main() -> None:
 
             reference_image: Optional[np.ndarray] = None
             reference_pose: Optional[np.ndarray] = None
+            estimated_depth_image: Optional[np.ndarray] = None
 
             while True:
                 colour_image: np.ndarray = image_source.get_image()
@@ -73,12 +75,24 @@ def main() -> None:
                     reference_pose = pose.copy()
                     continue
 
+                if c == ord('v'):
+                    break
+
                 if reference_image is not None:
-                    estimated_depth_image: np.ndarray = estimator.estimate_depth(
+                    estimated_depth_image = estimator.estimate_depth(
                         colour_image, reference_image, np.linalg.inv(pose), np.linalg.inv(reference_pose)
                     )
                     cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
                     cv2.waitKey(1)
+
+            if estimated_depth_image is not None:
+                height, width = colour_image.shape[:2]
+                estimated_depth_image = cv2.resize(
+                    estimated_depth_image, (width, height), interpolation=cv2.INTER_NEAREST
+                )
+                VisualisationUtil.visualise_rgbd_image(
+                    colour_image, estimated_depth_image, image_source.get_intrinsics()
+                )
     finally:
         # Terminate the image source once we've finished.
         if image_source is not None:
