@@ -48,8 +48,9 @@ class MVDepthEstimator:
 
         # Scale the camera intrinsics prior to resizing the input images to 320x256.
         K: np.ndarray = self.__intrinsics.copy()
-        K[0, :] *= 320.0 / left_image.shape[1]
-        K[1, :] *= 256.0 / left_image.shape[0]
+        height, width = left_image.shape[:2]
+        K[0, :] *= 320.0 / width
+        K[1, :] *= 256.0 / height
 
         # Resize the input images to 320x256.
         left_image = cv2.resize(left_image, (320, 256))
@@ -86,8 +87,10 @@ class MVDepthEstimator:
         # Get the predicted inverse depth image.
         inv_depth_image: np.ndarray = np.squeeze(outputs[0].cpu().data.numpy())
 
-        # Invert and return it.
-        return 1.0 / inv_depth_image
+        # Invert it, resize it to the original image size, and return it.
+        depth_image: np.ndarray = 1.0 / inv_depth_image
+        depth_image = cv2.resize(depth_image, (width, height), interpolation=cv2.INTER_NEAREST)
+        return depth_image
 
     # PRIVATE STATIC METHODS
 
