@@ -1,41 +1,35 @@
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+
+from typing import Tuple
 
 from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
+from smg.utility import GeometryUtil, PoseUtil
 
 
 def main():
-    model_path: str = "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar"
+    # Specify the input data and camera intrinsics.
+    sequence_dir: str = "D:/7scenes/heads/train"
+    intrinsics: Tuple[float, float, float, float] = (585.0, 585.0, 320.0, 240.0)
+    left_idx: int = 0
+    right_idx: int = 55
 
-    intrinsics: np.ndarray = np.array([
-        [585.0, 0, 320.0],
-        [0, 585.0, 240.0],
-        [0, 0, 1]
-    ])
+    # Load the input images and poses.
+    left_image: np.ndarray = cv2.imread(os.path.join(sequence_dir, f"frame-{left_idx:06d}.color.png"))
+    right_image: np.ndarray = cv2.imread(os.path.join(sequence_dir, f"frame-{right_idx:06d}.color.png"))
+    left_pose: np.ndarray = PoseUtil.load_pose(os.path.join(sequence_dir, f"frame-{left_idx:06d}.pose.txt"))
+    right_pose: np.ndarray = PoseUtil.load_pose(os.path.join(sequence_dir, f"frame-{right_idx:06d}.pose.txt"))
 
-    estimator: MVDepthEstimator = MVDepthEstimator(model_path, intrinsics)
+    # Estimate the depth for the left-hand image.
+    depth_estimator: MVDepthEstimator = MVDepthEstimator(
+        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
+        GeometryUtil.intrinsics_to_matrix(intrinsics)
+    )
+    depth_image: np.ndarray = depth_estimator.estimate_depth(left_image, right_image, left_pose, right_pose)
 
-    left_image: np.ndarray = cv2.imread("D:/7scenes/heads/train/frame-000000.color.png")
-    right_image: np.ndarray = cv2.imread("D:/7scenes/heads/train/frame-000055.color.png")
-    left_pose: np.ndarray = np.array([
-        [9.9798417e-001, 2.5588147e-002, 5.5003788e-002, 9.5729552e-002],
-        [-3.4286145e-002, 9.8580331e-001, 1.6358595e-001, -4.1082110e-002],
-        [-5.0044306e-002, -1.6512756e-001, 9.8484284e-001, 1.3248709e-001],
-        [0.0000000e+000	, 0.0000000e+000, 0.0000000e+000, 1.0000000e+000]
-    ])
-    right_pose: np.ndarray = np.array([
-        [9.9853259e-001, -4.9765650e-002, 9.9766739e-003, 2.9618734e-001],
-        [4.7499087e-002, 9.8555100e-001, 1.6177388e-001, -1.2100209e-001],
-        [-1.7887015e-002, -1.6104801e-001, 9.8662180e-001, -1.5921636e-002],
-        [0.0000000e+000, 0.0000000e+000, 0.0000000e+000, 1.0000000e+000]
-    ])
-
-    print(left_pose)
-    print(right_pose)
-
-    depth_image: np.ndarray = estimator.estimate_depth(left_image, right_image, left_pose, right_pose)
-
+    # Show the estimated depth image.
     plt.imshow(depth_image)
     plt.show()
 
