@@ -10,6 +10,7 @@ from smg.open3d import VisualisationUtil
 from smg.openni import OpenNICamera, OpenNIRGBDImageSource
 from smg.pyorbslam2 import MonocularTracker
 from smg.rotory import DroneFactory, DroneRGBImageSource
+from smg.utility import GeometryUtil
 
 
 def main() -> None:
@@ -39,30 +40,28 @@ def main() -> None:
             }
             image_source = DroneRGBImageSource(DroneFactory.make_drone(source_type, **kwargs[source_type]))
 
+        # Construct the tracker.
         with MonocularTracker(
             settings_file=f"settings-kinect.yaml", use_viewer=True,
             voc_file="C:/orbslam2/Vocabulary/ORBvoc.txt", wait_till_ready=False
         ) as tracker:
-            fx, fy, cx, cy = image_source.get_intrinsics()
-            model_path: str = "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar"
-
-            intrinsics: np.ndarray = np.array([
-                [fx, 0, cx],
-                [0, fy, cy],
-                [0, 0, 1]
-            ])
-
-            estimator: MVDepthEstimator = MVDepthEstimator(model_path, intrinsics)
+            # Construct the depth estimator.
+            depth_estimator: MVDepthEstimator = MVDepthEstimator(
+                "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
+                GeometryUtil.intrinsics_to_matrix(image_source.get_intrinsics())
+            )
 
             reference_image: Optional[np.ndarray] = None
             reference_pose: Optional[np.ndarray] = None
             estimated_depth_image: Optional[np.ndarray] = None
 
             while True:
+                # Get the colour image from the camera, and show it.
                 colour_image: np.ndarray = image_source.get_image()
                 cv2.imshow("Colour Image", colour_image)
                 c: int = cv2.waitKey(1)
 
+                # If the tracker's not yet ready, or the pose can't be estimated for this frame, continue.
                 if not tracker.is_ready():
                     continue
 
@@ -70,26 +69,27 @@ def main() -> None:
                 if pose is None:
                     continue
 
+                # If the user presses the 'r' key, set this frame as the reference.
                 if c == ord('r'):
                     reference_image = colour_image.copy()
                     reference_pose = pose.copy()
                     continue
 
+                # If the user presses the 'v' key, exit the loop so that the estimated depth image can be visualised.
                 if c == ord('v'):
                     break
 
+                # Provided the reference frame has been set:
                 if reference_image is not None:
-                    estimated_depth_image = estimator.estimate_depth(
+                    # Estimate a depth image for the current frame, and show it.
+                    estimated_depth_image = depth_estimator.estimate_depth(
                         colour_image, reference_image, np.linalg.inv(pose), np.linalg.inv(reference_pose)
                     )
                     cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
                     cv2.waitKey(1)
 
+            # Visualise the 3D point cloud corresponding to the most recently estimated depth image (if any).
             if estimated_depth_image is not None:
-                height, width = colour_image.shape[:2]
-                estimated_depth_image = cv2.resize(
-                    estimated_depth_image, (width, height), interpolation=cv2.INTER_NEAREST
-                )
                 VisualisationUtil.visualise_rgbd_image(
                     colour_image, estimated_depth_image, image_source.get_intrinsics()
                 )
