@@ -15,7 +15,7 @@ def main() -> None:
     with OpenNICamera(mirror_images=True) as camera:
         # Construct the tracker.
         with RGBDTracker(
-            settings_file=f"settings-kinect.yaml", use_viewer=True,
+            settings_file=f"settings-kinect.yaml", use_viewer=False,
             voc_file="C:/orbslam2/Vocabulary/ORBvoc.txt", wait_till_ready=False
         ) as tracker:
             # Construct the depth estimator.
@@ -61,14 +61,19 @@ def main() -> None:
                     smallest_baseline = min(baselines[i], smallest_baseline)
                     smallest_look_angle = min(look_angles[i], smallest_look_angle)
 
-                    if not (0.1 <= baselines[i] <= 0.5):
+                    if baselines[i] < 0.025:
                         continue
-                    if not (5.0 <= look_angles[i] <= 15.0):
+                    if look_angles[i] > 20.0:
                         continue
 
+                    # if not (0.05 <= baselines[i] <= 0.5):
+                    #     continue
+                    # if not (look_angles[i] <= 20.0):
+                    #     continue
+
                     # See the Mobile3DRecon paper.
-                    b_m: float = 0.3
-                    delta: float = 0.2
+                    b_m: float = 0.15
+                    delta: float = 0.1
                     alpha_m: float = 10.0
                     w_b: float = np.exp(-(baselines[i] - b_m)**2 / delta**2)
                     w_v: float = max(alpha_m / look_angles[i], 1)
@@ -77,29 +82,17 @@ def main() -> None:
                         best_keyframe_idx = i
                         best_score = score
 
-                force_new_keyframe: bool = False
-
+                # If a suitable keyframe was found, estimate a depth image for the current frame, and show it.
                 if best_keyframe_idx >= 0:
-                    # Estimate a depth image for the current frame, and show it.
                     keyframe_image, keyframe_w_t_c = keyframes[best_keyframe_idx]
                     estimated_depth_image: np.ndarray = depth_estimator.estimate_depth(
                         colour_image, keyframe_image, tracker_w_t_c, keyframe_w_t_c
                     )
                     cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
                     cv2.waitKey(1)
-                elif smallest_baseline > 0.5 or smallest_look_angle > 15.0:
-                    force_new_keyframe = True
 
                 # Check whether this frame should be a new keyframe. If so, add it to the list.
-                new_keyframe: bool = True
-                if not force_new_keyframe:
-                    for i in range(len(keyframes)):
-                        if baselines[i] <= 0.1 and look_angles[i] <= 5.0:
-                            new_keyframe = False
-                            break
-
-                if new_keyframe:
-                    print(f"Adding New Keyframe (Forced={force_new_keyframe})")
+                if smallest_baseline > 0.05 or smallest_look_angle > 5.0:
                     keyframes.append((colour_image, tracker_w_t_c))
 
 
