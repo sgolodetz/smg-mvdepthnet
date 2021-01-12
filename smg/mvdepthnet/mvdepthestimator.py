@@ -34,15 +34,15 @@ class MVDepthEstimator:
 
     # noinspection PyPep8Naming
     def estimate_depth(self, left_image: np.ndarray, right_image: np.ndarray,
-                       left_pose: np.ndarray, right_pose: np.ndarray) -> np.ndarray:
+                       world_from_left: np.ndarray, world_from_right: np.ndarray) -> np.ndarray:
         """
         Estimate a depth image corresponding to the left input image.
 
-        :param left_image:  The left input image.
-        :param right_image: The right input image.
-        :param left_pose:   The camera pose corresponding to the left input image.
-        :param right_pose:  The camera pose corresponding to the right input image.
-        :return:            The estimated depth image corresponding to the left input image.
+        :param left_image:          The left input image.
+        :param right_image:         The right input image.
+        :param world_from_left:     The camera pose corresponding to the left input image.
+        :param world_from_right:    The camera pose corresponding to the right input image.
+        :return:                    The estimated depth image corresponding to the left input image.
         """
         # Note: Borrowed (with mild adaptations) from example2.py in the MVDepthNet code.
 
@@ -62,7 +62,7 @@ class MVDepthEstimator:
         pixel_coordinate = np.reshape(pixel_coordinate, [3, -1])
 
         # Prepare the matrices that need to be passed to the model.
-        left2right: np.ndarray = np.dot(np.linalg.inv(right_pose), left_pose)
+        left2right: np.ndarray = np.linalg.inv(world_from_right) @ world_from_left
         left_in_right_T = left2right[0:3, 3]
         left_in_right_R = left2right[0:3, 0:3]
         K_inv = np.linalg.inv(K)
