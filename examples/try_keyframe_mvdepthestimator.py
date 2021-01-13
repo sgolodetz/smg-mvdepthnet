@@ -5,6 +5,7 @@ from operator import itemgetter
 from typing import List, Optional, Tuple
 
 from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
+from smg.open3d import VisualisationUtil
 from smg.openni import OpenNICamera
 from smg.pyorbslam2 import RGBDTracker
 from smg.rigging.helpers import CameraUtil
@@ -28,6 +29,9 @@ def main() -> None:
             # Initialise the list of keyframes.
             keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
 
+            best_depth_image: Optional[np.ndarray] = None
+            second_best_depth_image: Optional[np.ndarray] = None
+
             while True:
                 # Get the colour and depth images from the camera, and show them.
                 colour_image, depth_image = camera.get_images()
@@ -44,6 +48,10 @@ def main() -> None:
                     continue
 
                 tracker_w_t_c: np.ndarray = np.linalg.inv(tracker_c_t_w)
+
+                # If the user presses the 'v' key, exit the loop so that the estimated depth image can be visualised.
+                if c == ord('v'):
+                    break
 
                 # Compute the baselines (in m) and look angles (in degrees) with respect to any existing keyframes.
                 baselines: List[float] = []
@@ -73,47 +81,39 @@ def main() -> None:
                         scores.append((i, w_b * w_v))
 
                 # Try to choose up to two keyframes to use together with the current frame to estimate the depth.
-                if len(scores) > 0:
+                if len(scores) >= 2:
                     # FIXME: There's no need to fully sort the list here.
                     scores = sorted(scores, key=itemgetter(1), reverse=True)
                     best_keyframe_idx, best_keyframe_score = scores[0]
-                    if best_keyframe_score > 0.0:
-                        _, best_keyframe_w_t_c = keyframes[best_keyframe_idx]
+                    second_best_keyframe_idx, second_best_keyframe_score = scores[1]
+                    if best_keyframe_score > 0.0 and second_best_keyframe_score > 0.0:
+                        best_keyframe_image, best_keyframe_w_t_c = keyframes[best_keyframe_idx]
+                        second_best_keyframe_image, second_best_keyframe_w_t_c = keyframes[second_best_keyframe_idx]
 
-                        second_best_keyframe_idx: int = -1
-                        for i in range(1, len(scores)):
-                            keyframe_idx, keyframe_score = scores[i]
-                            if keyframe_score == 0.0:
-                                break
-                            _, keyframe_w_t_c = keyframes[keyframe_idx]
-                            inter_keyframe_baseline: float = CameraUtil.compute_baseline_p(
-                                best_keyframe_w_t_c, keyframe_w_t_c
-                            )
-                            if inter_keyframe_baseline > 0.025:
-                                second_best_keyframe_idx = i
-                                break
-
-                        aggregator: MVDepthEstimator.CostVolumeAggregator = MVDepthEstimator.CostVolumeAggregator()
-                        best_keyframe_image, _ = keyframes[best_keyframe_idx]
-                        aggregator.add_cost_volume(depth_estimator.make_cost_volume(
+                        best_depth_image = depth_estimator.estimate_depth(
                             colour_image, best_keyframe_image, tracker_w_t_c, best_keyframe_w_t_c
-                        ))
-
-                        if second_best_keyframe_idx > 0:
-                            second_best_keyframe_image, second_best_keyframe_w_t_c = keyframes[second_best_keyframe_idx]
-                            aggregator.add_cost_volume(depth_estimator.make_cost_volume(
-                                colour_image, second_best_keyframe_image, tracker_w_t_c, second_best_keyframe_w_t_c
-                            ))
-
-                        estimated_depth_image: np.ndarray = depth_estimator.estimate_depth_from_cost_volume(
-                            colour_image, aggregator.get_average_cost_volume()
                         )
-                        cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
+                        second_best_depth_image = depth_estimator.estimate_depth(
+                            colour_image, second_best_keyframe_image, tracker_w_t_c, second_best_keyframe_w_t_c
+                        )
+
+                        diff = np.abs(best_depth_image - second_best_depth_image)
+                        best_depth_image = np.where(diff < 0.1, best_depth_image, 0.0)
+                        second_best_depth_image = np.where(diff < 0.1, second_best_depth_image, 0.0)
+
+                        cv2.imshow("Best Depth Image", best_depth_image / 2)
+                        cv2.imshow("Second Best Depth Image", second_best_depth_image / 2)
                         cv2.waitKey(1)
 
                 # Check whether this frame should be a new keyframe. If so, add it to the list.
                 if smallest_baseline > 0.05 or smallest_look_angle > 5.0:
                     keyframes.append((colour_image, tracker_w_t_c))
+
+            # Visualise the 3D point cloud corresponding to the most recently estimated best depth image (if any).
+            if best_depth_image is not None:
+                VisualisationUtil.visualise_rgbd_image(
+                    colour_image, best_depth_image, camera.get_colour_intrinsics()
+                )
 
 
 if __name__ == "__main__":
