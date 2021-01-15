@@ -1,1 +1,2 @@
+from .monocular_depth_estimator import MonocularDepthEstimator
 from .multiview_depth_estimator import MultiviewDepthEstimator
