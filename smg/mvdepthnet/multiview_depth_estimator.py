@@ -10,8 +10,8 @@ from typing import List, Optional
 from smg.external.mvdepthnet.depthNet_model import depthNet
 
 
-class MVDepthEstimator:
-    """An MVDepthNet depth estimator."""
+class MultiviewDepthEstimator:
+    """A multi-view depth estimator based on MVDepthNet."""
 
     # NESTED TYPES
 
@@ -27,7 +27,7 @@ class MVDepthEstimator:
 
         # PUBLIC METHODS
 
-        def add_cost_volume(self, cost_volume: torch.Tensor) -> MVDepthEstimator.CostVolumeAggregator:
+        def add_cost_volume(self, cost_volume: torch.Tensor) -> MultiviewDepthEstimator.CostVolumeAggregator:
             """
             Add a cost volume to the aggregator.
 
@@ -55,7 +55,7 @@ class MVDepthEstimator:
 
     def __init__(self, model_path: str, intrinsics: np.ndarray):
         """
-        Construct an MVDepthNet depth estimator.
+        Construct a multi-view depth estimator.
 
         :param model_path:  The path to the MVDepthNet model.
         :param intrinsics:  The 3x3 camera intrinsics matrix.
@@ -105,7 +105,7 @@ class MVDepthEstimator:
 
         # Run the model.
         outputs: List[torch.Tensor] = self.__model.predictDepths(
-            MVDepthEstimator.__image_to_cuda_tensor(reference_image), cost_volume
+            MultiviewDepthEstimator.__image_to_cuda_tensor(reference_image), cost_volume
         )
 
         # Get the predicted inverse depth image.
@@ -166,8 +166,8 @@ class MVDepthEstimator:
 
         # Calculate the cost volume.
         return self.__model.getVolume(
-            MVDepthEstimator.__image_to_cuda_tensor(left_image),
-            MVDepthEstimator.__image_to_cuda_tensor(right_image),
+            MultiviewDepthEstimator.__image_to_cuda_tensor(left_image),
+            MultiviewDepthEstimator.__image_to_cuda_tensor(right_image),
             KRKiUV_cuda_T, KT_cuda_T
         )
 

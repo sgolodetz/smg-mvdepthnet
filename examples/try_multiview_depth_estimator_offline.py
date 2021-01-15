@@ -5,7 +5,7 @@ import os
 
 from typing import Tuple
 
-from smg.mvdepthnet import MVDepthEstimator
+from smg.mvdepthnet import MultiviewDepthEstimator
 from smg.utility import GeometryUtil, PoseUtil
 
 
@@ -23,7 +23,7 @@ def main():
     right_pose: np.ndarray = PoseUtil.load_pose(os.path.join(sequence_dir, f"frame-{right_idx:06d}.pose.txt"))
 
     # Estimate the depth for the left-hand image.
-    depth_estimator: MVDepthEstimator = MVDepthEstimator(
+    depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(
         "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
         GeometryUtil.intrinsics_to_matrix(intrinsics)
     )

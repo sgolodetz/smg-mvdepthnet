@@ -1,1 +1,1 @@
-from .mvdepthestimator import MVDepthEstimator
+from .multiview_depth_estimator import MultiviewDepthEstimator
