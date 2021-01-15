@@ -42,7 +42,7 @@ def main() -> None:
 
         # Construct the tracker.
         with MonocularTracker(
-            settings_file=f"settings-kinect.yaml", use_viewer=True,
+            settings_file=f"settings-{source_type}.yaml", use_viewer=True,
             voc_file="C:/orbslam2/Vocabulary/ORBvoc.txt", wait_till_ready=False
         ) as tracker:
             # Construct the depth estimator.

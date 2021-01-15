@@ -149,7 +149,7 @@ class MVDepthEstimator:
         pixel_coordinate = np.reshape(pixel_coordinate, [3, -1])
 
         # Prepare the matrices that are needed for calculating the cost volume.
-        left2right: np.ndarray = np.dot(np.linalg.inv(world_from_right), world_from_left)
+        left2right: np.ndarray = np.linalg.inv(world_from_right) @ world_from_left
         left_in_right_T = left2right[0:3, 3]
         left_in_right_R = left2right[0:3, 0:3]
         K_inv = np.linalg.inv(K)
