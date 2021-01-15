@@ -3,7 +3,7 @@ import numpy as np
 
 from typing import Optional
 
-from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
+from smg.mvdepthnet import MVDepthEstimator
 from smg.open3d import VisualisationUtil
 from smg.openni import OpenNICamera
 from smg.pyorbslam2 import RGBDTracker

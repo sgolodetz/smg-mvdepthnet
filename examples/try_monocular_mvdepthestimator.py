@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from typing import Dict, Optional
 
 from smg.imagesources import RGBFromRGBDImageSource, RGBImageSource
-from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
+from smg.mvdepthnet import MVDepthEstimator
 from smg.open3d import VisualisationUtil
 from smg.openni import OpenNICamera, OpenNIRGBDImageSource
 from smg.pyorbslam2 import MonocularTracker

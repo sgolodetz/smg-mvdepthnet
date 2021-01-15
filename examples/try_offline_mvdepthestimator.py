@@ -5,7 +5,7 @@ import os
 
 from typing import Tuple
 
-from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
+from smg.mvdepthnet import MVDepthEstimator
 from smg.utility import GeometryUtil, PoseUtil
 
 

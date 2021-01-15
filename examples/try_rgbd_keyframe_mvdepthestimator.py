@@ -4,7 +4,7 @@ import numpy as np
 from operator import itemgetter
 from typing import List, Optional, Tuple
 
-from smg.mvdepthnet.mvdepthestimator import MVDepthEstimator
+from smg.mvdepthnet import MVDepthEstimator
 from smg.open3d import VisualisationUtil
 from smg.openni import OpenNICamera
 from smg.pyorbslam2 import RGBDTracker
@@ -115,7 +115,7 @@ def main() -> None:
 
                 # Check whether this frame should be a new keyframe. If so, add it to the list.
                 if smallest_baseline > 0.05 or smallest_look_angle > 5.0:
-                    keyframes.append((colour_image, tracker_w_t_c))
+                    keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
             # Visualise the 3D point cloud corresponding to the most recently estimated best depth image (if any).
             if best_depth_image is not None:
