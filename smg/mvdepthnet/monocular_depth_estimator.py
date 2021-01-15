@@ -15,6 +15,13 @@ class MonocularDepthEstimator:
     # CONSTRUCTOR
 
     def __init__(self, model_path: str, intrinsics: np.ndarray, *, debug: bool = False):
+        """
+        Construct a monocular depth estimator.
+
+        :param model_path:  The path to the MVDepthNet model.
+        :param intrinsics:  The 3x3 camera intrinsics matrix.
+        :param debug:       Whether to show debug visualisations.
+        """
         self.__debug: bool = debug
         self.__keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
         self.__multiview_depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(model_path, intrinsics)
@@ -22,6 +29,16 @@ class MonocularDepthEstimator:
     # PUBLIC METHODS
 
     def estimate_depth(self, colour_image: np.ndarray, tracker_w_t_c: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Try to estimate a depth image corresponding to the colour image passed in.
+
+        .. note::
+            If two suitable keyframes cannot be found for triangulation, this will return None.
+
+        :param colour_image:    The colour image.
+        :param tracker_w_t_c:   The camera pose corresponding to the colour image (as a camera -> world transform).
+        :return:                The estimated depth image, if possible, or None otherwise.
+        """
         best_depth_image: Optional[np.ndarray] = None
 
         # Compute the baselines (in m) and look angles (in degrees) with respect to any existing keyframes.
