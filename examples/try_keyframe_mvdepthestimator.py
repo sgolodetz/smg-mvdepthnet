@@ -29,9 +29,8 @@ def main() -> None:
             # Initialise the list of keyframes.
             keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
 
+            # Repeatedly:
             best_depth_image: Optional[np.ndarray] = None
-            second_best_depth_image: Optional[np.ndarray] = None
-
             while True:
                 # Get the colour and depth images from the camera, and show them.
                 colour_image, depth_image = camera.get_images()
@@ -70,9 +69,10 @@ def main() -> None:
                     smallest_look_angle = min(look_angles[i], smallest_look_angle)
 
                     if baselines[i] < 0.025 or look_angles[i] > 20.0:
+                        # If the baseline's too small, force the score of this keyframe to 0.
                         scores.append((i, 0.0))
                     else:
-                        # Adapted from the Mobile3DRecon paper.
+                        # Otherwise, compute a score as per the Mobile3DRecon paper (but with different parameters).
                         b_m: float = 0.15
                         delta: float = 0.1
                         alpha_m: float = 10.0
@@ -82,25 +82,33 @@ def main() -> None:
 
                 # Try to choose up to two keyframes to use together with the current frame to estimate the depth.
                 if len(scores) >= 2:
+                    # Find the two best keyframes, based on their scores.
                     # FIXME: There's no need to fully sort the list here.
                     scores = sorted(scores, key=itemgetter(1), reverse=True)
                     best_keyframe_idx, best_keyframe_score = scores[0]
                     second_best_keyframe_idx, second_best_keyframe_score = scores[1]
+
+                    # If both keyframes are fine to use:
                     if best_keyframe_score > 0.0 and second_best_keyframe_score > 0.0:
+                        # Look up the keyframe images and poses.
                         best_keyframe_image, best_keyframe_w_t_c = keyframes[best_keyframe_idx]
                         second_best_keyframe_image, second_best_keyframe_w_t_c = keyframes[second_best_keyframe_idx]
 
+                        # Separately estimate a depth image from each keyframe.
                         best_depth_image = depth_estimator.estimate_depth(
                             colour_image, best_keyframe_image, tracker_w_t_c, best_keyframe_w_t_c
                         )
-                        second_best_depth_image = depth_estimator.estimate_depth(
+                        second_best_depth_image: np.ndarray = depth_estimator.estimate_depth(
                             colour_image, second_best_keyframe_image, tracker_w_t_c, second_best_keyframe_w_t_c
                         )
 
-                        diff = np.abs(best_depth_image - second_best_depth_image)
-                        best_depth_image = np.where(diff < 0.1, best_depth_image, 0.0)
-                        second_best_depth_image = np.where(diff < 0.1, second_best_depth_image, 0.0)
+                        # Filter out any depths that are not sufficiently consistent across both estimates.
+                        tolerance: float = 0.1
+                        diff: np.ndarray = np.abs(best_depth_image - second_best_depth_image)
+                        best_depth_image = np.where(diff < tolerance, best_depth_image, 0.0)
+                        second_best_depth_image = np.where(diff < tolerance, second_best_depth_image, 0.0)
 
+                        # Show both estimates, after the filtering.
                         cv2.imshow("Best Depth Image", best_depth_image / 2)
                         cv2.imshow("Second Best Depth Image", second_best_depth_image / 2)
                         cv2.waitKey(1)
