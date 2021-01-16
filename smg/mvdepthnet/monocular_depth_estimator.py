@@ -14,16 +14,37 @@ class MonocularDepthEstimator:
 
     # CONSTRUCTOR
 
-    def __init__(self, model_path: str, intrinsics: np.ndarray, *, debug: bool = False):
+    def __init__(self, model_path: str, intrinsics: np.ndarray, *,
+                 debug: bool = False, max_baseline_before_keyframe: float = 0.05,
+                 max_consistent_depth_diff: float = 0.1, max_look_angle_before_keyframe: float = 5.0,
+                 max_triangulation_look_angle: float = 20.0, min_triangulation_baseline: float = 0.025):
         """
         Construct a monocular depth estimator.
 
-        :param model_path:  The path to the MVDepthNet model.
-        :param intrinsics:  The 3x3 camera intrinsics matrix.
-        :param debug:       Whether to show debug visualisations.
+        :param model_path:                      The path to the MVDepthNet model.
+        :param intrinsics:                      The 3x3 camera intrinsics matrix.
+        :param debug:                           Whether to show debug visualisations.
+        :param max_baseline_before_keyframe:    The maximum baseline (in m) there can be between the current position
+                                                and the position of the closest keyframe without triggering the
+                                                creation of a new keyframe.
+        :param max_consistent_depth_diff:       The maximum difference there can be between the depths estimated for
+                                                a pixel by the best and second best keyframes for those depths to be
+                                                considered sufficiently consistent.
+        :param max_look_angle_before_keyframe:  The maximum look angle (in degrees) there can be between the current
+                                                look vector and the look vector of the closest keyframe without
+                                                triggering the creation of a new keyframe.
+        :param max_triangulation_look_angle:    The maximum angle (in degrees) there can be between the look vector
+                                                of a keyframe and the current look vector for the keyframe to be used.
+        :param min_triangulation_baseline:      The maximum baseline (in m) there can be between the position of a
+                                                keyframe and the current position for the keyframe to be used.
         """
         self.__debug: bool = debug
         self.__keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
+        self.__max_baseline_before_keyframe: float = max_baseline_before_keyframe
+        self.__max_consistent_depth_diff: float = max_consistent_depth_diff
+        self.__max_look_angle_before_keyframe: float = max_look_angle_before_keyframe
+        self.__max_triangulation_look_angle: float = max_triangulation_look_angle
+        self.__min_triangulation_baseline: float = min_triangulation_baseline
         self.__multiview_depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(model_path, intrinsics)
 
     # PUBLIC METHODS
@@ -50,15 +71,16 @@ class MonocularDepthEstimator:
 
         # Score all of the keyframes with respect to the current frame.
         scores: List[(int, float)] = []
-        smallest_baseline: float = 1000.0
-        smallest_look_angle: float = 1000.0
+        smallest_baseline: float = np.inf
+        smallest_look_angle: float = np.inf
 
         for i in range(len(self.__keyframes)):
             smallest_baseline = min(baselines[i], smallest_baseline)
             smallest_look_angle = min(look_angles[i], smallest_look_angle)
 
-            if baselines[i] < 0.025 or look_angles[i] > 20.0:
-                # If the baseline's too small, force the score of this keyframe to 0.
+            if baselines[i] < self.__min_triangulation_baseline \
+                    or look_angles[i] > self.__max_triangulation_look_angle:
+                # If the baseline's too small, or the look angle's too large, force the score of this keyframe to 0.
                 scores.append((i, 0.0))
             else:
                 # Otherwise, compute a score as per the Mobile3DRecon paper (but with different parameters).
@@ -73,6 +95,8 @@ class MonocularDepthEstimator:
         if len(scores) >= 2:
             # Find the two best keyframes, based on their scores.
             # FIXME: There's no need to fully sort the list here.
+            # See: https://stackoverflow.com/a/23734295/499449
+            # x[np.argpartition(x, range(-2,0))[::-1]
             scores = sorted(scores, key=itemgetter(1), reverse=True)
             best_keyframe_idx, best_keyframe_score = scores[0]
             second_best_keyframe_idx, second_best_keyframe_score = scores[1]
@@ -92,19 +116,21 @@ class MonocularDepthEstimator:
                 )
 
                 # Filter out any depths that are not sufficiently consistent across both estimates.
-                tolerance: float = 0.1
                 diff: np.ndarray = np.abs(best_depth_image - second_best_depth_image)
-                best_depth_image = np.where(diff < tolerance, best_depth_image, 0.0)
+                best_depth_image = np.where(diff < self.__max_consistent_depth_diff, best_depth_image, 0.0)
 
                 # If we're debugging, also filter the second-best depth image, and show both depth images.
                 if self.__debug:
-                    second_best_depth_image = np.where(diff < tolerance, second_best_depth_image, 0.0)
+                    second_best_depth_image = np.where(
+                        diff < self.__max_consistent_depth_diff, second_best_depth_image, 0.0
+                    )
                     cv2.imshow("Best Depth Image", best_depth_image / 2)
                     cv2.imshow("Second Best Depth Image", second_best_depth_image / 2)
                     cv2.waitKey(1)
 
         # Check whether this frame should be a new keyframe. If so, add it to the list.
-        if smallest_baseline > 0.05 or smallest_look_angle > 5.0:
+        if smallest_baseline > self.__max_baseline_before_keyframe \
+                or smallest_look_angle > self.__max_look_angle_before_keyframe:
             self.__keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
         return best_depth_image
