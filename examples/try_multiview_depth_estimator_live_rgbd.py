@@ -20,9 +20,8 @@ def main() -> None:
         ) as tracker:
             # Construct the depth estimator.
             depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(
-                "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
-                GeometryUtil.intrinsics_to_matrix(camera.get_colour_intrinsics())
-            )
+                "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar"
+            ).set_intrinsics(GeometryUtil.intrinsics_to_matrix(camera.get_colour_intrinsics()))
 
             reference_image: Optional[np.ndarray] = None
             reference_pose: Optional[np.ndarray] = None

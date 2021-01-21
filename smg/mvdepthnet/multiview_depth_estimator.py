@@ -8,6 +8,7 @@ import torch.backends.cudnn as cudnn
 from typing import List, Optional
 
 from smg.external.mvdepthnet.depthNet_model import depthNet
+from smg.utility import GeometryUtil
 
 
 class MultiviewDepthEstimator:
@@ -53,15 +54,12 @@ class MultiviewDepthEstimator:
 
     # CONSTRUCTOR
 
-    def __init__(self, model_path: str, intrinsics: np.ndarray):
+    def __init__(self, model_path: str):
         """
         Construct a multi-view depth estimator.
 
         :param model_path:  The path to the MVDepthNet model.
-        :param intrinsics:  The 3x3 camera intrinsics matrix.
         """
-        self.__intrinsics: np.ndarray = intrinsics
-
         # Load the MVDepthNet model.
         self.__model: depthNet = depthNet()
         data: dict = torch.load(model_path)
@@ -70,9 +68,15 @@ class MultiviewDepthEstimator:
         cudnn.benchmark = True
         self.__model.eval()
 
+        # Run a dummy depth estimation to get the pyTorch warnings out of the way. Note that the correct
+        # intrinsics will be set externally later, so we can use whatever intrinsics we like here. The
+        # actual depth image estimated is irrelevant - we're just warming pyTorch up early.
+        self.__intrinsics: Optional[np.ndarray] = GeometryUtil.intrinsics_to_matrix((1.0, 1.0, 1.0, 1.0))
+        dummy_image: np.ndarray = np.zeros((1, 1, 3), dtype=np.uint8)
+        self.estimate_depth(dummy_image, dummy_image, np.eye(4), np.eye(4))
+
     # PUBLIC METHODS
 
-    # noinspection PyPep8Naming
     def estimate_depth(self, reference_image: np.ndarray, measurement_image: np.ndarray,
                        world_from_reference: np.ndarray, world_from_measurement: np.ndarray) -> np.ndarray:
         """
@@ -170,6 +174,16 @@ class MultiviewDepthEstimator:
             MultiviewDepthEstimator.__image_to_cuda_tensor(right_image),
             KRKiUV_cuda_T, KT_cuda_T
         )
+
+    def set_intrinsics(self, intrinsics: np.ndarray) -> MultiviewDepthEstimator:
+        """
+        Set the camera intrinsics.
+
+        :param intrinsics:  The 3x3 camera intrinsics matrix.
+        :return:            The current object.
+        """
+        self.__intrinsics = intrinsics
+        return self
 
     # PRIVATE STATIC METHODS
 
