@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import cv2
 import numpy as np
 
@@ -14,15 +16,13 @@ class MonocularDepthEstimator:
 
     # CONSTRUCTOR
 
-    def __init__(self, model_path: str, intrinsics: np.ndarray, *,
-                 debug: bool = False, max_consistent_depth_diff: float = 0.1,
+    def __init__(self, model_path: str, *, debug: bool = False, max_consistent_depth_diff: float = 0.1,
                  max_rotation_before_keyframe: float = 5.0, max_rotation_for_triangulation: float = 20.0,
                  max_translation_before_keyframe: float = 0.05, min_translation_for_triangulation: float = 0.025):
         """
         Construct a monocular depth estimator.
 
         :param model_path:                          The path to the MVDepthNet model.
-        :param intrinsics:                          The 3x3 camera intrinsics matrix.
         :param debug:                               Whether to show debug visualisations.
         :param max_translation_before_keyframe:     The maximum translation (in m) there can be between the current
                                                     position and the position of the closest keyframe without
@@ -46,7 +46,7 @@ class MonocularDepthEstimator:
         self.__max_rotation_for_triangulation: float = max_rotation_for_triangulation
         self.__max_translation_before_keyframe: float = max_translation_before_keyframe
         self.__min_translation_for_triangulation: float = min_translation_for_triangulation
-        self.__multiview_depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(model_path, intrinsics)
+        self.__multiview_depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(model_path)
 
     # PUBLIC METHODS
 
@@ -135,3 +135,13 @@ class MonocularDepthEstimator:
             self.__keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
         return best_depth_image
+
+    def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
+        """
+        Set the camera intrinsics.
+
+        :param intrinsics:  The 3x3 camera intrinsics matrix.
+        :return:            The current object.
+        """
+        self.__multiview_depth_estimator.set_intrinsics(intrinsics)
+        return self

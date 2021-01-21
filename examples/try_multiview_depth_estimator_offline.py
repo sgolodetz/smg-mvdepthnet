@@ -24,9 +24,8 @@ def main():
 
     # Estimate the depth for the left-hand image.
     depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(
-        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar",
-        GeometryUtil.intrinsics_to_matrix(intrinsics)
-    )
+        "C:/Users/Stuart Golodetz/Downloads/MVDepthNet/opensource_model.pth.tar"
+    ).set_intrinsics(GeometryUtil.intrinsics_to_matrix(intrinsics))
     depth_image: np.ndarray = depth_estimator.estimate_depth(left_image, right_image, left_pose, right_pose)
 
     # Show the estimated depth image.
