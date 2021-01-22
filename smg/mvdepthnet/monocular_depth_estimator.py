@@ -62,6 +62,7 @@ class MonocularDepthEstimator:
         :return:                The estimated depth image, if possible, or None otherwise.
         """
         best_depth_image: Optional[np.ndarray] = None
+        second_best_depth_image: Optional[np.ndarray] = None
 
         # Compute the translations (in m) and (look) rotations (in degrees) with respect to any existing keyframes.
         translations: List[float] = []
@@ -112,19 +113,21 @@ class MonocularDepthEstimator:
                 best_depth_image = self.__multiview_depth_estimator.estimate_depth(
                     colour_image, best_keyframe_image, tracker_w_t_c, best_keyframe_w_t_c
                 )
-                second_best_depth_image: np.ndarray = self.__multiview_depth_estimator.estimate_depth(
+                second_best_depth_image = self.__multiview_depth_estimator.estimate_depth(
                     colour_image, second_best_keyframe_image, tracker_w_t_c, second_best_keyframe_w_t_c
                 )
 
                 # Filter out any depths that are not sufficiently consistent across both estimates.
                 diff: np.ndarray = np.abs(best_depth_image - second_best_depth_image)
-                best_depth_image = np.where(diff < self.__max_consistent_depth_diff, best_depth_image, 0.0)
+                best_depth_image = np.where(
+                    diff < self.__max_consistent_depth_diff, best_depth_image, 0.0
+                )
+                second_best_depth_image = np.where(
+                    diff < self.__max_consistent_depth_diff, second_best_depth_image, 0.0
+                )
 
-                # If we're debugging, also filter the second-best depth image, and show both depth images.
+                # If we're debugging, show both depth images.
                 if self.__debug:
-                    second_best_depth_image = np.where(
-                        diff < self.__max_consistent_depth_diff, second_best_depth_image, 0.0
-                    )
                     cv2.imshow("Best Depth Image", best_depth_image / 2)
                     cv2.imshow("Second Best Depth Image", second_best_depth_image / 2)
                     cv2.waitKey(1)
@@ -134,7 +137,11 @@ class MonocularDepthEstimator:
                 or smallest_rotation > self.__max_rotation_before_keyframe:
             self.__keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
-        return best_depth_image
+        # If best and second-best depth images were successfully estimated, return their average, else return None.
+        if best_depth_image is not None:
+            return (best_depth_image + second_best_depth_image) / 2
+        else:
+            return None
 
     def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
         """
