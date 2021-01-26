@@ -143,6 +143,14 @@ class MonocularDepthEstimator:
         else:
             return None
 
+    def get_keyframes(self) -> List[Tuple[np.ndarray, np.ndarray]]:
+        """
+        Get the current set of keyframes.
+
+        :return:    The current set of keyframes.
+        """
+        return self.__keyframes
+
     def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
         """
         Set the camera intrinsics.
