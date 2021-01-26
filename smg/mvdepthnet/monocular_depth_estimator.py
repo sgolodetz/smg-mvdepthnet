@@ -139,7 +139,16 @@ class MonocularDepthEstimator:
 
         # If best and second-best depth images were successfully estimated, return their average, else return None.
         if best_depth_image is not None:
-            return (best_depth_image + second_best_depth_image) / 2
+            result: np.ndarray = (best_depth_image + second_best_depth_image) / 2
+            height, width = result.shape
+            border: int = 40
+            result[:border, :] = 0.0
+            result[height-border:, :] = 0.0
+            result[:, :border] = 0.0
+            result[:, width-border:] = 0.0
+            cv2.imshow("Returned Depth Image", result / 2)
+            cv2.waitKey(1)
+            return result
         else:
             return None
 
