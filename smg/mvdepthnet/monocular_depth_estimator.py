@@ -7,6 +7,7 @@ from operator import itemgetter
 from typing import List, Optional, Tuple
 
 from smg.rigging.helpers import CameraUtil
+from smg.utility import ImageUtil
 
 from .multiview_depth_estimator import MultiviewDepthEstimator
 
@@ -16,13 +17,16 @@ class MonocularDepthEstimator:
 
     # CONSTRUCTOR
 
-    def __init__(self, model_path: str, *, debug: bool = False, max_consistent_depth_diff: float = 0.1,
+    def __init__(self, model_path: str, *,
+                 border_size: int = 40, debug: bool = False, max_consistent_depth_diff: float = 0.1,
                  max_rotation_before_keyframe: float = 5.0, max_rotation_for_triangulation: float = 20.0,
                  max_translation_before_keyframe: float = 0.05, min_translation_for_triangulation: float = 0.025):
         """
         Construct a monocular depth estimator.
 
         :param model_path:                          The path to the MVDepthNet model.
+        :param border_size:                         The size of the border (in pixels) of the estimated depth image
+                                                    that is to be filled with zeros to help mitigate depth noise.
         :param debug:                               Whether to show debug visualisations.
         :param max_translation_before_keyframe:     The maximum translation (in m) there can be between the current
                                                     position and the position of the closest keyframe without
@@ -39,6 +43,7 @@ class MonocularDepthEstimator:
         :param min_translation_for_triangulation:   The minimum translation (in m) there can be between the position
                                                     of a keyframe and the current position for the keyframe to be used.
         """
+        self.__border_size: int = border_size
         self.__debug: bool = debug
         self.__keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
         self.__max_consistent_depth_diff: float = max_consistent_depth_diff
@@ -137,17 +142,20 @@ class MonocularDepthEstimator:
                 or smallest_rotation > self.__max_rotation_before_keyframe:
             self.__keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
-        # If best and second-best depth images were successfully estimated, return their average, else return None.
+        # If best and second-best depth images were successfully estimated:
         if best_depth_image is not None:
+            # Calculate their average.
             result: np.ndarray = (best_depth_image + second_best_depth_image) / 2
-            height, width = result.shape
-            border: int = 40
-            result[:border, :] = 0.0
-            result[height-border:, :] = 0.0
-            result[:, :border] = 0.0
-            result[:, width-border:] = 0.0
-            cv2.imshow("Returned Depth Image", result / 2)
-            cv2.waitKey(1)
+
+            # Fill the border of the resulting depth image with zeros (depths around the image border
+            # are often quite noisy).
+            result = ImageUtil.fill_border(result, self.__border_size, 0.0)
+
+            # If we're debugging, show the image that we're actually returning.
+            if self.__debug:
+                cv2.imshow("Estimated Depth Image", result / 2)
+                cv2.waitKey(1)
+
             return result
         else:
             return None
