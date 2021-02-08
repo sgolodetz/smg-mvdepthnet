@@ -66,6 +66,38 @@ class MonocularDepthEstimator:
         :param tracker_w_t_c:   The camera pose corresponding to the colour image (as a camera -> world transform).
         :return:                The estimated depth image, if possible, or None otherwise.
         """
+        result: Optional[Tuple[np.ndarray, np.ndarray]] = self.estimate_depth_full(colour_image, tracker_w_t_c)
+        if result is not None:
+            estimated_depth_image, depth_diff_image = result
+
+            # Filter out any depths that were not sufficiently consistent across both depth estimates.
+            estimated_depth_image = np.where(
+                depth_diff_image < self.__max_consistent_depth_diff, estimated_depth_image, 0.0
+            )
+
+            # If we're debugging, show the output image.
+            if self.__debug:
+                cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
+                cv2.waitKey(1)
+
+            return estimated_depth_image
+        else:
+            return None
+
+    def estimate_depth_full(self, colour_image: np.ndarray, tracker_w_t_c: np.ndarray) \
+            -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """
+        Try to estimate a depth image corresponding to the colour image passed in.
+
+        .. note::
+            If two suitable keyframes cannot be found for triangulation, this will return None.
+
+        :param colour_image:    The colour image.
+        :param tracker_w_t_c:   The camera pose corresponding to the colour image (as a camera -> world transform).
+        :return:                If possible, a tuple consisting of the estimated depth image and a depth difference
+                                image in which each pixel denotes the absolute difference between estimates of the
+                                depth based on two different keyframes, or None otherwise.
+        """
         best_depth_image: Optional[np.ndarray] = None
         second_best_depth_image: Optional[np.ndarray] = None
 
@@ -122,15 +154,6 @@ class MonocularDepthEstimator:
                     colour_image, second_best_keyframe_image, tracker_w_t_c, second_best_keyframe_w_t_c
                 )
 
-                # Filter out any depths that are not sufficiently consistent across both estimates.
-                diff: np.ndarray = np.abs(best_depth_image - second_best_depth_image)
-                best_depth_image = np.where(
-                    diff < self.__max_consistent_depth_diff, best_depth_image, 0.0
-                )
-                second_best_depth_image = np.where(
-                    diff < self.__max_consistent_depth_diff, second_best_depth_image, 0.0
-                )
-
                 # If we're debugging, show both depth images.
                 if self.__debug:
                     cv2.imshow("Best Depth Image", best_depth_image / 2)
@@ -144,19 +167,22 @@ class MonocularDepthEstimator:
 
         # If best and second-best depth images were successfully estimated:
         if best_depth_image is not None:
-            # Calculate their average.
-            result: np.ndarray = (best_depth_image + second_best_depth_image) / 2
+            # Calculate the average of the two depth images.
+            estimated_depth_image: np.ndarray = (best_depth_image + second_best_depth_image) / 2
 
-            # Fill the border of the resulting depth image with zeros (depths around the image border
-            # are often quite noisy).
-            result = ImageUtil.fill_border(result, self.__border_to_fill, 0.0)
+            # Fill the border with zeros (depths around the image border are often quite noisy).
+            estimated_depth_image = ImageUtil.fill_border(estimated_depth_image, self.__border_to_fill, 0.0)
 
-            # If we're debugging, show the image that we're actually returning.
+            # Calculate how inconsistent the depth estimates are for each pixel.
+            depth_diff_image: np.ndarray = np.abs(best_depth_image - second_best_depth_image)
+
+            # If we're debugging, show the output images.
             if self.__debug:
-                cv2.imshow("Estimated Depth Image", result / 2)
+                cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
+                cv2.imshow("Depth Inconsistency Image", depth_diff_image)
                 cv2.waitKey(1)
 
-            return result
+            return estimated_depth_image, depth_diff_image
         else:
             return None
 

@@ -49,9 +49,7 @@ def main() -> None:
                 tracker_w_t_c: np.ndarray = np.linalg.inv(tracker_c_t_w)
 
                 # Estimate the depth image.
-                estimated_depth_image = depth_estimator.estimate_depth(
-                    colour_image, tracker_w_t_c
-                )
+                estimated_depth_image = depth_estimator.estimate_depth(colour_image, tracker_w_t_c)
 
             # Visualise the 3D point cloud corresponding to the most recently estimated depth image (if any).
             if estimated_depth_image is not None:
