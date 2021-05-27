@@ -18,7 +18,7 @@ class MonocularDepthEstimator:
     # CONSTRUCTOR
 
     def __init__(self, model_path: str, *, border_to_fill: int = 40, debug: bool = False,
-                 max_consistent_depth_diff: float = 0.1, max_rotation_before_keyframe: float = 5.0,
+                 max_consistent_depth_diff: float = 0.05, max_rotation_before_keyframe: float = 5.0,
                  max_rotation_for_triangulation: float = 20.0, max_translation_before_keyframe: float = 0.05,
                  min_translation_for_triangulation: float = 0.025):
         """
