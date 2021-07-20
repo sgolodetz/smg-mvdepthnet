@@ -134,7 +134,7 @@ class MultiviewDepthEstimator:
         :param right_image:         The measurement image.
         :param world_from_left:     The camera pose corresponding to the reference image.
         :param world_from_right:    The camera pose corresponding to the measurement image.
-        :return:                    The estimated depth image corresponding to the reference image.
+        :return:                    The cost volume.
         """
         # Note: Borrowed (with mild adaptations) from example2.py in the MVDepthNet code.
 
