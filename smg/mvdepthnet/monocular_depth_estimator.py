@@ -123,12 +123,13 @@ class MonocularDepthEstimator:
                 scores.append((i, 0.0))
             else:
                 # Otherwise, compute a score as per the Mobile3DRecon paper (but with different parameters).
-                b_m: float = 0.15
-                delta: float = 0.1
+                b_m: float = 0.4
+                delta: float = 0.2
                 alpha_m: float = 10.0
                 w_b: float = np.exp(-(translations[i] - b_m) ** 2 / delta ** 2)
-                w_v: float = max(alpha_m / rotations[i], 1)
-                scores.append((i, w_b * w_v))
+                # w_v: float = max(alpha_m / rotations[i], 1)
+                # scores.append((i, w_b * w_v))
+                scores.append((i, w_b if rotations[i] < 30.0 else 0.0))
 
         # Try to choose up to two keyframes to use together with the current frame to estimate the depth.
         if len(scores) >= 2:
