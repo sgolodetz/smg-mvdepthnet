@@ -122,14 +122,13 @@ class MonocularDepthEstimator:
                 # If the translation's too small, or the rotation's too large, force the score of this keyframe to 0.
                 scores.append((i, 0.0))
             else:
-                # Otherwise, compute a score as per the Mobile3DRecon paper (but with different parameters).
+                # Otherwise, compute a score loosely based on the one in the Mobile3DRecon paper. Note that we don't
+                # use the rotation part of the score, as it produces bad results, and we change the parameters for
+                # the translation part of the score (as these parameters empirically seem to work better).
                 b_m: float = 0.4
                 delta: float = 0.2
-                alpha_m: float = 10.0
                 w_b: float = np.exp(-(translations[i] - b_m) ** 2 / delta ** 2)
-                # w_v: float = max(alpha_m / rotations[i], 1)
-                # scores.append((i, w_b * w_v))
-                scores.append((i, w_b if rotations[i] < 30.0 else 0.0))
+                scores.append((i, w_b))
 
         # Try to choose up to two keyframes to use together with the current frame to estimate the depth.
         if len(scores) >= 2:
