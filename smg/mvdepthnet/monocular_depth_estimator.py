@@ -136,12 +136,13 @@ class MonocularDepthEstimator:
 
         # Score all of the keyframes with respect to the current frame.
         scores: List[(int, float)] = []
-        smallest_translation: float = np.inf
-        smallest_rotation: float = np.inf
+        translation_to_closest_keyframe: float = np.inf
+        rotation_to_closest_keyframe: float = np.inf
 
         for i in range(len(self.__keyframes)):
-            smallest_translation = min(translations[i], smallest_translation)
-            smallest_rotation = min(rotations[i], smallest_rotation)
+            if translations[i] < translation_to_closest_keyframe:
+                translation_to_closest_keyframe = translations[i]
+                rotation_to_closest_keyframe = rotations[i]
 
             if translations[i] < self.__min_translation_for_triangulation \
                     or rotations[i] > self.__max_rotation_for_triangulation:
@@ -187,8 +188,8 @@ class MonocularDepthEstimator:
                     cv2.waitKey(1)
 
         # Check whether this frame should be a new keyframe. If so, add it to the list.
-        if smallest_translation > self.__max_translation_before_keyframe \
-                or smallest_rotation > self.__max_rotation_before_keyframe:
+        if translation_to_closest_keyframe > self.__max_translation_before_keyframe \
+                or rotation_to_closest_keyframe > self.__max_rotation_before_keyframe:
             self.__keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
         # If best and second-best depth images were successfully estimated:
