@@ -7,7 +7,7 @@ from operator import itemgetter
 from typing import List, Optional, Tuple
 
 from smg.rigging.helpers import CameraUtil
-from smg.utility import ImageUtil
+from smg.utility import DepthImageProcessor, ImageUtil
 
 from .multiview_depth_estimator import MultiviewDepthEstimator
 
@@ -52,6 +52,32 @@ class MonocularDepthEstimator:
         self.__max_translation_before_keyframe: float = max_translation_before_keyframe
         self.__min_translation_for_triangulation: float = min_translation_for_triangulation
         self.__multiview_depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(model_path)
+
+    # PUBLIC STATIC METHODS
+
+    @staticmethod
+    def postprocess_depth_image(depth_image: np.ndarray) -> Optional[np.ndarray]:
+        # Limit the depth range to 3m (more distant points can be unreliable).
+        depth_image = np.where(depth_image <= 3.0, depth_image, 0.0)
+
+        # If we have depth values for more than 20% of the remaining pixels:
+        if np.count_nonzero(depth_image) / np.product(depth_image.shape) >= 0.2:
+            # Segment the depth image into regions such that all of the pixels in each region have similar depth.
+            segmentation, stats, _ = DepthImageProcessor.segment_depth_image(depth_image, threshold=0.05)
+
+            # Remove any regions that are smaller than the specified size.
+            depth_image, _ = DepthImageProcessor.remove_isolated_regions(
+                depth_image, segmentation, stats, min_region_size=20000
+            )
+
+            # Median filter the depth image to help mitigate impulsive noise.
+            depth_image = cv2.medianBlur(depth_image, 7)
+
+            return depth_image
+
+        # Otherwise, discard the depth image.
+        else:
+            return None
 
     # PUBLIC METHODS
 
