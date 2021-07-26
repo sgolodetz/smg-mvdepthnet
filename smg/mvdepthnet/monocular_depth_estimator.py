@@ -7,7 +7,7 @@ from operator import itemgetter
 from typing import List, Optional, Tuple
 
 from smg.rigging.helpers import CameraUtil
-from smg.utility import ImageUtil
+from smg.utility import DepthImageProcessor, ImageUtil
 
 from .multiview_depth_estimator import MultiviewDepthEstimator
 
@@ -18,7 +18,7 @@ class MonocularDepthEstimator:
     # CONSTRUCTOR
 
     def __init__(self, model_path: str, *, border_to_fill: int = 40, debug: bool = False,
-                 max_consistent_depth_diff: float = 0.1, max_rotation_before_keyframe: float = 5.0,
+                 max_consistent_depth_diff: float = 0.05, max_rotation_before_keyframe: float = 5.0,
                  max_rotation_for_triangulation: float = 20.0, max_translation_before_keyframe: float = 0.05,
                  min_translation_for_triangulation: float = 0.025):
         """
@@ -52,6 +52,57 @@ class MonocularDepthEstimator:
         self.__max_translation_before_keyframe: float = max_translation_before_keyframe
         self.__min_translation_for_triangulation: float = min_translation_for_triangulation
         self.__multiview_depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(model_path)
+
+    # PUBLIC STATIC METHODS
+
+    @staticmethod
+    def postprocess_depth_image(depth_image: np.ndarray, *, max_depth: float = 3.0, max_depth_difference: float = 0.05,
+                                median_filter_radius: int = 7, min_region_size: int = 20000,
+                                min_valid_fraction: float = 0.2) -> Optional[np.ndarray]:
+        """
+        Try to post-process the specified depth image to try to reduce the amount of noise it contains.
+
+        .. note::
+            This function will return None if the input depth image does not have depth values for enough pixels.
+
+        :param depth_image:             The input depth image.
+        :param max_depth:               The maximum depth values to keep (pixels with depth values greater than this
+                                        will have their depths set to zero).
+        :param max_depth_difference:    The maximum depth difference to allow between two neighbouring pixels in the
+                                        same segmentation region.
+        :param median_filter_radius:    The radius of the median filter to use to reduce impulsive noise at the end
+                                        of the post-processing operation.
+        :param min_region_size:         The minimum size of region to keep from the depth segmentation (that is,
+                                        regions smaller than this will have their depths set to zero).
+        :param min_valid_fraction:      The minimum fraction of pixels for which the input depth image must have
+                                        depth values for the post-processing operation to succeed. (Note that we
+                                        remove pixels whose depth values are greater than the specified maximum
+                                        depth before performing this test.)
+        :return:                        The post-processed depth image, if possible, or None otherwise.
+        """
+        # Limit the depth range (more distant points can be unreliable).
+        depth_image = np.where(depth_image <= max_depth, depth_image, 0.0)
+
+        # If we have depth values for more than the specified fraction of the remaining pixels:
+        if np.count_nonzero(depth_image) / np.product(depth_image.shape) >= min_valid_fraction:
+            # Segment the depth image into regions such that all of the pixels in each region have similar depth.
+            segmentation, stats, _ = DepthImageProcessor.segment_depth_image(
+                depth_image, max_depth_difference=max_depth_difference
+            )
+
+            # Remove any regions that are smaller than the specified size.
+            depth_image, _ = DepthImageProcessor.remove_small_regions(
+                depth_image, segmentation, stats, min_region_size=min_region_size
+            )
+
+            # Median filter the depth image to help mitigate impulsive noise.
+            depth_image = cv2.medianBlur(depth_image, median_filter_radius)
+
+            return depth_image
+
+        # Otherwise, discard the depth image.
+        else:
+            return None
 
     # PUBLIC METHODS
 
@@ -110,25 +161,26 @@ class MonocularDepthEstimator:
 
         # Score all of the keyframes with respect to the current frame.
         scores: List[(int, float)] = []
-        smallest_translation: float = np.inf
-        smallest_rotation: float = np.inf
+        translation_to_closest_keyframe: float = np.inf
+        rotation_to_closest_keyframe: float = np.inf
 
         for i in range(len(self.__keyframes)):
-            smallest_translation = min(translations[i], smallest_translation)
-            smallest_rotation = min(rotations[i], smallest_rotation)
+            if translations[i] < translation_to_closest_keyframe:
+                translation_to_closest_keyframe = translations[i]
+                rotation_to_closest_keyframe = rotations[i]
 
             if translations[i] < self.__min_translation_for_triangulation \
                     or rotations[i] > self.__max_rotation_for_triangulation:
                 # If the translation's too small, or the rotation's too large, force the score of this keyframe to 0.
                 scores.append((i, 0.0))
             else:
-                # Otherwise, compute a score as per the Mobile3DRecon paper (but with different parameters).
-                b_m: float = 0.15
-                delta: float = 0.1
-                alpha_m: float = 10.0
+                # Otherwise, compute a score loosely based on the one in the Mobile3DRecon paper. Note that we don't
+                # use the rotation part of the score, as it produces bad results, and we change the parameters for
+                # the translation part of the score (as these parameters empirically seem to work better).
+                b_m: float = 0.4
+                delta: float = 0.2
                 w_b: float = np.exp(-(translations[i] - b_m) ** 2 / delta ** 2)
-                w_v: float = max(alpha_m / rotations[i], 1)
-                scores.append((i, w_b * w_v))
+                scores.append((i, w_b))
 
         # Try to choose up to two keyframes to use together with the current frame to estimate the depth.
         if len(scores) >= 2:
@@ -161,8 +213,8 @@ class MonocularDepthEstimator:
                     cv2.waitKey(1)
 
         # Check whether this frame should be a new keyframe. If so, add it to the list.
-        if smallest_translation > self.__max_translation_before_keyframe \
-                or smallest_rotation > self.__max_rotation_before_keyframe:
+        if translation_to_closest_keyframe > self.__max_translation_before_keyframe \
+                or rotation_to_closest_keyframe > self.__max_rotation_before_keyframe:
             self.__keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
         # If best and second-best depth images were successfully estimated:
