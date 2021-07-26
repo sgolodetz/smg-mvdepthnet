@@ -56,22 +56,47 @@ class MonocularDepthEstimator:
     # PUBLIC STATIC METHODS
 
     @staticmethod
-    def postprocess_depth_image(depth_image: np.ndarray) -> Optional[np.ndarray]:
-        # Limit the depth range to 3m (more distant points can be unreliable).
-        depth_image = np.where(depth_image <= 3.0, depth_image, 0.0)
+    def postprocess_depth_image(depth_image: np.ndarray, *, max_depth: float = 3.0, max_depth_difference: float = 0.05,
+                                median_filter_radius: int = 7, min_region_size: int = 20000,
+                                min_valid_fraction: float = 0.2) -> Optional[np.ndarray]:
+        """
+        Try to post-process the specified depth image to try to reduce the amount of noise it contains.
 
-        # If we have depth values for more than 20% of the remaining pixels:
-        if np.count_nonzero(depth_image) / np.product(depth_image.shape) >= 0.2:
+        .. note::
+            This function will return None if the input depth image does not have depth values for enough pixels.
+
+        :param depth_image:             The input depth image.
+        :param max_depth:               The maximum depth values to keep (pixels with depth values greater than this
+                                        will have their depths set to zero).
+        :param max_depth_difference:    The maximum depth difference to allow between two neighbouring pixels in the
+                                        same segmentation region.
+        :param median_filter_radius:    The radius of the median filter to use to reduce impulsive noise at the end
+                                        of the post-processing operation.
+        :param min_region_size:         The minimum size of region to keep from the depth segmentation (that is,
+                                        regions smaller than this will have their depths set to zero).
+        :param min_valid_fraction:      The minimum fraction of pixels for which the input depth image must have
+                                        depth values for the post-processing operation to succeed. (Note that we
+                                        remove pixels whose depth values are greater than the specified maximum
+                                        depth before performing this test.)
+        :return:                        The post-processed depth image, if possible, or None otherwise.
+        """
+        # Limit the depth range (more distant points can be unreliable).
+        depth_image = np.where(depth_image <= max_depth, depth_image, 0.0)
+
+        # If we have depth values for more than the specified fraction of the remaining pixels:
+        if np.count_nonzero(depth_image) / np.product(depth_image.shape) >= min_valid_fraction:
             # Segment the depth image into regions such that all of the pixels in each region have similar depth.
-            segmentation, stats, _ = DepthImageProcessor.segment_depth_image(depth_image, threshold=0.05)
+            segmentation, stats, _ = DepthImageProcessor.segment_depth_image(
+                depth_image, max_depth_difference=max_depth_difference
+            )
 
             # Remove any regions that are smaller than the specified size.
-            depth_image, _ = DepthImageProcessor.remove_isolated_regions(
-                depth_image, segmentation, stats, min_region_size=20000
+            depth_image, _ = DepthImageProcessor.remove_small_regions(
+                depth_image, segmentation, stats, min_region_size=min_region_size
             )
 
             # Median filter the depth image to help mitigate impulsive noise.
-            depth_image = cv2.medianBlur(depth_image, 7)
+            depth_image = cv2.medianBlur(depth_image, median_filter_radius)
 
             return depth_image
 
