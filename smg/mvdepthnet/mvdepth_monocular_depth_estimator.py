@@ -7,12 +7,12 @@ from operator import itemgetter
 from typing import List, Optional, Tuple
 
 from smg.rigging.helpers import CameraUtil
-from smg.utility import DepthImageProcessor, ImageUtil
+from smg.utility import DepthImageProcessor, ImageUtil, MonocularDepthEstimator
 
-from .multiview_depth_estimator import MultiviewDepthEstimator
+from .mvdepth_multiview_depth_estimator import MVDepthMultiviewDepthEstimator
 
 
-class MonocularDepthEstimator:
+class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
     """A monocular depth estimator based on MVDepthNet."""
 
     # CONSTRUCTOR
@@ -51,7 +51,7 @@ class MonocularDepthEstimator:
         self.__max_rotation_for_triangulation: float = max_rotation_for_triangulation
         self.__max_translation_before_keyframe: float = max_translation_before_keyframe
         self.__min_translation_for_triangulation: float = min_translation_for_triangulation
-        self.__multiview_depth_estimator: MultiviewDepthEstimator = MultiviewDepthEstimator(model_path)
+        self.__multiview_depth_estimator: MVDepthMultiviewDepthEstimator = MVDepthMultiviewDepthEstimator(model_path)
 
     # PUBLIC METHODS
 
@@ -211,7 +211,7 @@ class MonocularDepthEstimator:
             min_region_size=20000, min_valid_fraction=0.2
         )
 
-    def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
+    def set_intrinsics(self, intrinsics: np.ndarray) -> MVDepthMonocularDepthEstimator:
         """
         Set the camera intrinsics.
 
