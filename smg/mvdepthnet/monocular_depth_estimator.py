@@ -22,7 +22,7 @@ class MonocularDepthEstimator:
                  max_rotation_for_triangulation: float = 20.0, max_translation_before_keyframe: float = 0.05,
                  min_translation_for_triangulation: float = 0.025):
         """
-        Construct a monocular depth estimator.
+        Construct an MVDepthNet-based monocular depth estimator.
 
         :param model_path:                          The path to the MVDepthNet model.
         :param border_to_fill:                      The size of the border (in pixels) of the estimated depth image
