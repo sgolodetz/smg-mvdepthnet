@@ -211,7 +211,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
             min_region_size=20000, min_valid_fraction=0.2
         )
 
-    def set_intrinsics(self, intrinsics: np.ndarray) -> MVDepthMonocularDepthEstimator:
+    def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
         """
         Set the camera intrinsics.
 
