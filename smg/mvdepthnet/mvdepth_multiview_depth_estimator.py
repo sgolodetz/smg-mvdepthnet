@@ -11,7 +11,7 @@ from smg.external.mvdepthnet.depthNet_model import depthNet
 from smg.utility import GeometryUtil
 
 
-class MultiviewDepthEstimator:
+class MVDepthMultiviewDepthEstimator:
     """A multi-view depth estimator based on MVDepthNet."""
 
     # NESTED TYPES
@@ -28,7 +28,7 @@ class MultiviewDepthEstimator:
 
         # PUBLIC METHODS
 
-        def add_cost_volume(self, cost_volume: torch.Tensor) -> MultiviewDepthEstimator.CostVolumeAggregator:
+        def add_cost_volume(self, cost_volume: torch.Tensor) -> MVDepthMultiviewDepthEstimator.CostVolumeAggregator:
             """
             Add a cost volume to the aggregator.
 
@@ -109,7 +109,7 @@ class MultiviewDepthEstimator:
 
         # Run the model.
         outputs: List[torch.Tensor] = self.__model.predictDepths(
-            MultiviewDepthEstimator.__image_to_cuda_tensor(reference_image), cost_volume
+            MVDepthMultiviewDepthEstimator.__image_to_cuda_tensor(reference_image), cost_volume
         )
 
         # Get the predicted inverse depth image.
@@ -170,12 +170,12 @@ class MultiviewDepthEstimator:
 
         # Calculate the cost volume.
         return self.__model.getVolume(
-            MultiviewDepthEstimator.__image_to_cuda_tensor(left_image),
-            MultiviewDepthEstimator.__image_to_cuda_tensor(right_image),
+            MVDepthMultiviewDepthEstimator.__image_to_cuda_tensor(left_image),
+            MVDepthMultiviewDepthEstimator.__image_to_cuda_tensor(right_image),
             KRKiUV_cuda_T, KT_cuda_T
         )
 
-    def set_intrinsics(self, intrinsics: np.ndarray) -> MultiviewDepthEstimator:
+    def set_intrinsics(self, intrinsics: np.ndarray) -> MVDepthMultiviewDepthEstimator:
         """
         Set the camera intrinsics.
 
