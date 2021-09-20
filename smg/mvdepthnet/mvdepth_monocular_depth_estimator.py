@@ -55,7 +55,8 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
 
     # PUBLIC METHODS
 
-    def estimate_depth(self, colour_image: np.ndarray, tracker_w_t_c: np.ndarray) -> Optional[np.ndarray]:
+    def estimate_depth(self, colour_image: np.ndarray, tracker_w_t_c: np.ndarray, *, postprocess: bool = False) \
+            -> Optional[np.ndarray]:
         """
         Try to estimate a depth image corresponding to the colour image passed in.
 
@@ -64,6 +65,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
 
         :param colour_image:    The colour image.
         :param tracker_w_t_c:   The camera pose corresponding to the colour image (as a camera -> world transform).
+        :param postprocess:     Whether or not to apply any optional post-processing to the depth image.
         :return:                The estimated depth image, if possible, or None otherwise.
         """
         result: Optional[Tuple[np.ndarray, np.ndarray]] = self.estimate_depth_full(colour_image, tracker_w_t_c)
@@ -75,12 +77,29 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
                 depth_diff_image < self.__max_consistent_depth_diff, estimated_depth_image, 0.0
             )
 
-            # If we're debugging, show the output image.
+            # If we're debugging, show the estimated depth image.
             if self.__debug:
-                cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
+                cv2.imshow("Estimated Depth Image", estimated_depth_image / 5)
                 cv2.waitKey(1)
 
-            return estimated_depth_image
+            # If post-processing is enabled:
+            if postprocess:
+                # Post-process the estimated depth image.
+                postprocessed_depth_image: Optional[np.ndarray] = DepthImageProcessor.postprocess_depth_image(
+                    estimated_depth_image, max_depth=3.0, max_depth_difference=0.05, median_filter_radius=7,
+                    min_region_size=20000, min_valid_fraction=0.2
+                )
+
+                # If we're debugging and the post-processing yielded a valid depth image, show it.
+                if self.__debug and postprocessed_depth_image is not None:
+                    cv2.imshow("Post-processed Depth Image", postprocessed_depth_image / 5)
+                    cv2.waitKey(1)
+
+                return postprocessed_depth_image
+
+            # Otherwise, simply return the estimated depth image as-is.
+            else:
+                return estimated_depth_image
         else:
             return None
 
@@ -194,22 +213,6 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         :return:    The current set of keyframes.
         """
         return self.__keyframes
-
-    # noinspection PyMethodMayBeStatic
-    def postprocess_depth_image(self, depth_image: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Try to post-process the specified depth image to reduce the amount of noise it contains.
-
-        .. note::
-            This function will return None if the input depth image does not have depth values for enough pixels.
-
-        :param depth_image: The input depth image.
-        :return:            The post-processed depth image, if possible, or None otherwise.
-        """
-        return DepthImageProcessor.postprocess_depth_image(
-            depth_image, max_depth=3.0, max_depth_difference=0.05, median_filter_radius=7,
-            min_region_size=20000, min_valid_fraction=0.2
-        )
 
     def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
         """
