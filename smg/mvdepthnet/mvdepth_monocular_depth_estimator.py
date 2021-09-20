@@ -77,29 +77,20 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
                 depth_diff_image < self.__max_consistent_depth_diff, estimated_depth_image, 0.0
             )
 
-            # If we're debugging, show the estimated depth image.
-            if self.__debug:
-                cv2.imshow("Estimated Depth Image", estimated_depth_image / 5)
-                cv2.waitKey(1)
-
             # If post-processing is enabled:
             if postprocess:
+                # If we're debugging, show the estimated depth image before post-processing.
+                if self.__debug:
+                    cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
+                    cv2.waitKey(1)
+
                 # Post-process the estimated depth image.
-                postprocessed_depth_image: Optional[np.ndarray] = DepthImageProcessor.postprocess_depth_image(
+                estimated_depth_image = DepthImageProcessor.postprocess_depth_image(
                     estimated_depth_image, max_depth=3.0, max_depth_difference=0.05, median_filter_radius=7,
                     min_region_size=20000, min_valid_fraction=0.2
                 )
 
-                # If we're debugging and the post-processing yielded a valid depth image, show it.
-                if self.__debug and postprocessed_depth_image is not None:
-                    cv2.imshow("Post-processed Depth Image", postprocessed_depth_image / 5)
-                    cv2.waitKey(1)
-
-                return postprocessed_depth_image
-
-            # Otherwise, simply return the estimated depth image as-is.
-            else:
-                return estimated_depth_image
+            return estimated_depth_image
         else:
             return None
 
@@ -176,8 +167,8 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
 
                 # If we're debugging, show both depth images.
                 if self.__debug:
-                    cv2.imshow("Best Depth Image", best_depth_image / 2)
-                    cv2.imshow("Second Best Depth Image", second_best_depth_image / 2)
+                    cv2.imshow("Best Depth Image", best_depth_image / 5)
+                    cv2.imshow("Second Best Depth Image", second_best_depth_image / 5)
                     cv2.waitKey(1)
 
         # Check whether this frame should be a new keyframe. If so, add it to the list.
@@ -198,7 +189,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
 
             # If we're debugging, show the output images.
             if self.__debug:
-                cv2.imshow("Estimated Depth Image", estimated_depth_image / 2)
+                cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
                 cv2.imshow("Depth Inconsistency Image", depth_diff_image)
                 cv2.waitKey(1)
 
