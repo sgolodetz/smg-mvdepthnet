@@ -77,14 +77,13 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
                 depth_diff_image < self.__max_consistent_depth_diff, estimated_depth_image, 0.0
             )
 
-            # If post-processing is enabled:
-            if postprocess:
-                # If we're debugging, show the estimated depth image before post-processing.
-                if self.__debug:
-                    cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
-                    cv2.waitKey(1)
+            # If we're debugging, show the estimated depth image.
+            if self.__debug:
+                cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
+                cv2.waitKey(1)
 
-                # Post-process the estimated depth image.
+            # Post-process the image if requested.
+            if postprocess:
                 estimated_depth_image = DepthImageProcessor.postprocess_depth_image(
                     estimated_depth_image, max_depth=3.0, max_depth_difference=0.05, median_filter_radius=7,
                     min_region_size=20000, min_valid_fraction=0.2
