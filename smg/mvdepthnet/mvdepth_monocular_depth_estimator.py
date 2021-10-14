@@ -18,9 +18,9 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
     # CONSTRUCTOR
 
     def __init__(self, model_path: str, *, border_to_fill: int = 40, debug: bool = False,
-                 max_consistent_depth_diff: float = 0.05, max_rotation_before_keyframe: float = 5.0,
-                 max_rotation_for_triangulation: float = 20.0, max_translation_before_keyframe: float = 0.05,
-                 min_translation_for_triangulation: float = 0.025):
+                 max_consistent_depth_diff: float = 0.05, max_depth: float = 3.0,
+                 max_rotation_before_keyframe: float = 5.0, max_rotation_for_triangulation: float = 20.0,
+                 max_translation_before_keyframe: float = 0.05, min_translation_for_triangulation: float = 0.025):
         """
         Construct an MVDepthNet-based monocular depth estimator.
 
@@ -34,6 +34,8 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         :param max_consistent_depth_diff:           The maximum difference there can be between the depths estimated
                                                     for a pixel by the best and second best keyframes for those depths
                                                     to be considered sufficiently consistent.
+        :param max_depth:                           The maximum depth values to keep during post-processing (pixels with
+                                                    depth values greater than this will have their depths set to zero).
         :param max_rotation_before_keyframe:        The maximum rotation (in degrees) there can be between the current
                                                     look vector and the look vector of the closest keyframe without
                                                     triggering the creation of a new keyframe.
@@ -47,6 +49,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         self.__debug: bool = debug
         self.__keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
         self.__max_consistent_depth_diff: float = max_consistent_depth_diff
+        self.__max_depth: float = max_depth
         self.__max_rotation_before_keyframe: float = max_rotation_before_keyframe
         self.__max_rotation_for_triangulation: float = max_rotation_for_triangulation
         self.__max_translation_before_keyframe: float = max_translation_before_keyframe
@@ -85,8 +88,8 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
             # Post-process the depth image if requested.
             if postprocess:
                 estimated_depth_image = DepthImageProcessor.postprocess_depth_image(
-                    estimated_depth_image, max_depth=3.0, max_depth_difference=0.05, median_filter_radius=7,
-                    min_region_size=20000, min_valid_fraction=0.2
+                    estimated_depth_image, max_depth=self.__max_depth, max_depth_difference=0.05,
+                    median_filter_radius=7, min_region_size=20000, min_valid_fraction=0.2
                 )
 
             return estimated_depth_image
