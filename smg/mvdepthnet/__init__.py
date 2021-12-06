@@ -1,2 +1,3 @@
+from .mvdepth2_monocular_depth_estimator import MVDepth2MonocularDepthEstimator
 from .mvdepth_monocular_depth_estimator import MVDepthMonocularDepthEstimator
 from .mvdepth_multiview_depth_estimator import MVDepthMultiviewDepthEstimator

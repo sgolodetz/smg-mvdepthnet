@@ -13,16 +13,16 @@ from .mvdepth_multiview_depth_estimator import MVDepthMultiviewDepthEstimator
 
 
 class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
-    """A monocular depth estimator based on MVDepthNet."""
+    """A monocular depth estimator based on MVDepthNet that triangulates against a single keyframe."""
 
     # CONSTRUCTOR
 
     def __init__(self, model_path: str, *, border_to_fill: int = 40, debug: bool = False,
-                 max_consistent_depth_diff: float = 0.05, max_depth: float = 3.0,
-                 max_rotation_before_keyframe: float = 5.0, max_rotation_for_triangulation: float = 20.0,
-                 max_translation_before_keyframe: float = 0.05, min_translation_for_triangulation: float = 0.025):
+                 max_depth: float = 3.0, max_rotation_before_keyframe: float = 5.0,
+                 max_rotation_for_triangulation: float = 20.0, max_translation_before_keyframe: float = 0.05,
+                 min_translation_for_triangulation: float = 0.025):
         """
-        Construct an MVDepthNet-based monocular depth estimator.
+        Construct a monocular depth estimator based on MVDepthNet that triangulates against a single keyframe.
 
         :param model_path:                          The path to the MVDepthNet model.
         :param border_to_fill:                      The size of the border (in pixels) of the estimated depth image
@@ -31,9 +31,6 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         :param max_translation_before_keyframe:     The maximum translation (in m) there can be between the current
                                                     position and the position of the closest keyframe without
                                                     triggering the creation of a new keyframe.
-        :param max_consistent_depth_diff:           The maximum difference there can be between the depths estimated
-                                                    for a pixel by the best and second best keyframes for those depths
-                                                    to be considered sufficiently consistent.
         :param max_depth:                           The maximum depth values to keep during post-processing (pixels with
                                                     depth values greater than this will have their depths set to zero).
         :param max_rotation_before_keyframe:        The maximum rotation (in degrees) there can be between the current
@@ -49,7 +46,6 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         self.__debug: bool = debug
         self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
-        self.__max_consistent_depth_diff: float = max_consistent_depth_diff
         self.__max_depth: float = max_depth
         self.__max_rotation_before_keyframe: float = max_rotation_before_keyframe
         self.__max_rotation_for_triangulation: float = max_rotation_for_triangulation
@@ -73,38 +69,11 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         Try to estimate a depth image corresponding to the colour image passed in.
 
         .. note::
-            If two suitable keyframes cannot be found for triangulation, this will return None.
-
-        :param colour_image:    The colour image.
-        :param tracker_w_t_c:   The camera pose corresponding to the colour image (as a camera -> world transform).
-        :param postprocess:     Whether or not to apply any optional post-processing to the depth image.
-        :return:                The estimated depth image, if possible, or None otherwise.
-        """
-        depth_image: Optional[np.ndarray] = self.estimate_depth_full(colour_image, tracker_w_t_c)
-        if depth_image is not None:
-            depth_image = np.where(depth_image <= self.__max_depth, depth_image, 0.0)
-
-            # # Post-process the depth image if requested.
-            # if postprocess:
-            #     depth_image = DepthImageProcessor.postprocess_depth_image(
-            #         depth_image, max_depth=self.__max_depth, max_depth_difference=0.05,
-            #         median_filter_radius=5, min_region_size=5000, min_valid_fraction=0.0
-            #     )
-            #
-            # return depth_image
-            return self.__postprocess_depth_image(depth_image, tracker_w_t_c) if postprocess else depth_image
-        else:
-            return None
-
-    def estimate_depth_full(self, colour_image: np.ndarray, tracker_w_t_c: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Try to estimate a depth image corresponding to the colour image passed in.
-
-        .. note::
             If a suitable keyframe cannot be found for triangulation, this will return None.
 
         :param colour_image:    The colour image.
         :param tracker_w_t_c:   The camera pose corresponding to the colour image (as a camera -> world transform).
+        :param postprocess:     Whether or not to apply any optional post-processing to the depth image.
         :return:                The estimated depth image, if possible, or None otherwise.
         """
         estimated_depth_image: Optional[np.ndarray] = None
@@ -168,12 +137,17 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
             # Fill the border with zeros (depths around the image border are often quite noisy).
             estimated_depth_image = ImageUtil.fill_border(estimated_depth_image, self.__border_to_fill, 0.0)
 
-            # If we're debugging, show the depth image.
+            # If we're debugging, show the estimated depth image.
             if self.__debug:
                 cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
                 cv2.waitKey(1)
 
-            return estimated_depth_image
+            # Return the estimated depth image, fully post-processing it in the process if requested,
+            # or just limiting the maximum depth as requested otherwise.
+            if postprocess:
+                return self.__postprocess_depth_image(estimated_depth_image, tracker_w_t_c)
+            else:
+                return np.where(estimated_depth_image <= self.__max_depth, estimated_depth_image, 0.0)
         else:
             return None
 
@@ -209,6 +183,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         :param tracker_w_t_c:   The camera pose corresponding to the depth image (as a camera -> world transform).
         :return:                The post-processed depth image, if possible, or None otherwise.
         """
+        # FIXME: This is all but identical to the one in DVMVSMonocularDepthEstimator - unify them.
         # Update the variables needed to perform temporal filtering.
         self.__previous_depth_image = self.__current_depth_image
         self.__previous_w_t_c = self.__current_w_t_c

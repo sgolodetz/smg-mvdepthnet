@@ -12,8 +12,8 @@ from smg.utility import DepthImageProcessor, ImageUtil, MonocularDepthEstimator
 from .mvdepth_multiview_depth_estimator import MVDepthMultiviewDepthEstimator
 
 
-class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
-    """A monocular depth estimator based on MVDepthNet."""
+class MVDepth2MonocularDepthEstimator(MonocularDepthEstimator):
+    """A monocular depth estimator based on MVDepthNet that triangulates against two different keyframes."""
 
     # CONSTRUCTOR
 
@@ -22,7 +22,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
                  max_rotation_before_keyframe: float = 5.0, max_rotation_for_triangulation: float = 20.0,
                  max_translation_before_keyframe: float = 0.05, min_translation_for_triangulation: float = 0.025):
         """
-        Construct an MVDepthNet-based monocular depth estimator.
+        Construct a monocular depth estimator based on MVDepthNet that triangulates against two different keyframes.
 
         :param model_path:                          The path to the MVDepthNet model.
         :param border_to_fill:                      The size of the border (in pixels) of the estimated depth image
@@ -85,14 +85,15 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
                 cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
                 cv2.waitKey(1)
 
-            # Post-process the depth image if requested.
+            # Return the estimated depth image, fully post-processing it in the process if requested,
+            # or just limiting the maximum depth as requested otherwise.
             if postprocess:
-                estimated_depth_image = DepthImageProcessor.postprocess_depth_image(
+                return DepthImageProcessor.postprocess_depth_image(
                     estimated_depth_image, max_depth=self.__max_depth, max_depth_difference=0.05,
                     median_filter_radius=7, min_region_size=20000, min_valid_fraction=0.2
                 )
-
-            return estimated_depth_image
+            else:
+                return np.where(estimated_depth_image <= self.__max_depth, estimated_depth_image, 0.0)
         else:
             return None
 
