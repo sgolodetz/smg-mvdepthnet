@@ -7,7 +7,7 @@ from operator import itemgetter
 from typing import List, Optional, Tuple
 
 from smg.rigging.helpers import CameraUtil
-from smg.utility import DepthImageProcessor, GeometryUtil, ImageUtil, MonocularDepthEstimator
+from smg.utility import DepthImageProcessor, ImageUtil, MonocularDepthEstimator
 
 from .mvdepth_multiview_depth_estimator import MVDepthMultiviewDepthEstimator
 
@@ -47,7 +47,6 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         """
         self.__border_to_fill: int = border_to_fill
         self.__debug: bool = debug
-        self.__intrinsics: Optional[Tuple[float, float, float, float]] = None
         self.__keyframes: List[Tuple[np.ndarray, np.ndarray]] = []
         self.__max_consistent_depth_diff: float = max_consistent_depth_diff
         self.__max_depth: float = max_depth
@@ -56,14 +55,6 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         self.__max_translation_before_keyframe: float = max_translation_before_keyframe
         self.__min_translation_for_triangulation: float = min_translation_for_triangulation
         self.__multiview_depth_estimator: MVDepthMultiviewDepthEstimator = MVDepthMultiviewDepthEstimator(model_path)
-
-        # Additional variables needed to perform temporal filtering of the depth images.
-        self.__current_depth_image: Optional[np.ndarray] = None
-        self.__current_w_t_c: Optional[np.ndarray] = None
-        self.__current_world_points: Optional[np.ndarray] = None
-        self.__previous_depth_image: Optional[np.ndarray] = None
-        self.__previous_w_t_c: Optional[np.ndarray] = None
-        self.__previous_world_points: Optional[np.ndarray] = None
 
     # PUBLIC METHODS
 
@@ -80,34 +71,47 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         :param postprocess:     Whether or not to apply any optional post-processing to the depth image.
         :return:                The estimated depth image, if possible, or None otherwise.
         """
-        depth_image: Optional[np.ndarray] = self.estimate_depth_full(colour_image, tracker_w_t_c)
-        if depth_image is not None:
-            depth_image = np.where(depth_image <= self.__max_depth, depth_image, 0.0)
+        result: Optional[Tuple[np.ndarray, np.ndarray]] = self.estimate_depth_full(colour_image, tracker_w_t_c)
+        if result is not None:
+            estimated_depth_image, depth_diff_image = result
 
-            # # Post-process the depth image if requested.
-            # if postprocess:
-            #     depth_image = DepthImageProcessor.postprocess_depth_image(
-            #         depth_image, max_depth=self.__max_depth, max_depth_difference=0.05,
-            #         median_filter_radius=5, min_region_size=5000, min_valid_fraction=0.0
-            #     )
-            #
-            # return depth_image
-            return self.__postprocess_depth_image(depth_image, tracker_w_t_c) if postprocess else depth_image
+            # Filter out any depths that were not sufficiently consistent across both depth estimates.
+            estimated_depth_image = np.where(
+                depth_diff_image < self.__max_consistent_depth_diff, estimated_depth_image, 0.0
+            )
+
+            # If we're debugging, show the raw estimated depth image.
+            if self.__debug:
+                cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
+                cv2.waitKey(1)
+
+            # Post-process the depth image if requested.
+            if postprocess:
+                estimated_depth_image = DepthImageProcessor.postprocess_depth_image(
+                    estimated_depth_image, max_depth=self.__max_depth, max_depth_difference=0.05,
+                    median_filter_radius=7, min_region_size=20000, min_valid_fraction=0.2
+                )
+
+            return estimated_depth_image
         else:
             return None
 
-    def estimate_depth_full(self, colour_image: np.ndarray, tracker_w_t_c: np.ndarray) -> Optional[np.ndarray]:
+    def estimate_depth_full(self, colour_image: np.ndarray, tracker_w_t_c: np.ndarray) \
+            -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """
         Try to estimate a depth image corresponding to the colour image passed in.
 
         .. note::
-            If a suitable keyframe cannot be found for triangulation, this will return None.
+            If two suitable keyframes cannot be found for triangulation, this will return None.
 
         :param colour_image:    The colour image.
         :param tracker_w_t_c:   The camera pose corresponding to the colour image (as a camera -> world transform).
-        :return:                The estimated depth image, if possible, or None otherwise.
+        :return:                If possible, a tuple consisting of the estimated depth image and a depth difference
+                                image in which each pixel denotes the absolute difference between estimates of the
+                                depth based on two different keyframes, or None otherwise.
         """
-        estimated_depth_image: Optional[np.ndarray] = None
+        best_depth_image: Optional[np.ndarray] = None
+        second_best_depth_image: Optional[np.ndarray] = None
 
         # Compute the translations (in m) and (look) rotations (in degrees) with respect to any existing keyframes.
         translations: List[float] = []
@@ -139,41 +143,59 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
                 w_b: float = np.exp(-(translations[i] - b_m) ** 2 / delta ** 2)
                 scores.append((i, w_b))
 
-        # Try to choose a keyframe to use together with the current frame to estimate the depth.
-        if len(scores) >= 1:
-            # Find the best keyframe, based on the scores.
+        # Try to choose up to two keyframes to use together with the current frame to estimate the depth.
+        if len(scores) >= 2:
+            # Find the two best keyframes, based on their scores.
             # FIXME: There's no need to fully sort the list here.
             # See: https://stackoverflow.com/a/23734295/499449
             # x[np.argpartition(x, range(-2,0))[::-1]
             scores = sorted(scores, key=itemgetter(1), reverse=True)
             best_keyframe_idx, best_keyframe_score = scores[0]
+            second_best_keyframe_idx, second_best_keyframe_score = scores[1]
 
-            # If the best keyframe is fine to use:
-            if best_keyframe_score > 0.0:
-                # Look up the keyframe image and pose.
+            # If both keyframes are fine to use:
+            if best_keyframe_score > 0.0 and second_best_keyframe_score > 0.0:
+                # Look up the keyframe images and poses.
                 best_keyframe_image, best_keyframe_w_t_c = self.__keyframes[best_keyframe_idx]
+                second_best_keyframe_image, second_best_keyframe_w_t_c = self.__keyframes[second_best_keyframe_idx]
 
-                # Estimate the depth image.
-                estimated_depth_image = self.__multiview_depth_estimator.estimate_depth(
+                # Separately estimate a depth image from each keyframe.
+                best_depth_image = self.__multiview_depth_estimator.estimate_depth(
                     colour_image, best_keyframe_image, tracker_w_t_c, best_keyframe_w_t_c
                 )
+                second_best_depth_image = self.__multiview_depth_estimator.estimate_depth(
+                    colour_image, second_best_keyframe_image, tracker_w_t_c, second_best_keyframe_w_t_c
+                )
+
+                # If we're debugging, show both depth images.
+                if self.__debug:
+                    cv2.imshow("Best Depth Image", best_depth_image / 5)
+                    cv2.imshow("Second Best Depth Image", second_best_depth_image / 5)
+                    cv2.waitKey(1)
 
         # Check whether this frame should be a new keyframe. If so, add it to the list.
         if translation_to_closest_keyframe > self.__max_translation_before_keyframe \
                 or rotation_to_closest_keyframe > self.__max_rotation_before_keyframe:
             self.__keyframes.append((colour_image.copy(), tracker_w_t_c.copy()))
 
-        # If a depth image was successfully estimated:
-        if estimated_depth_image is not None:
+        # If best and second-best depth images were successfully estimated:
+        if best_depth_image is not None:
+            # Calculate the average of the two depth images.
+            estimated_depth_image: np.ndarray = (best_depth_image + second_best_depth_image) / 2
+
             # Fill the border with zeros (depths around the image border are often quite noisy).
             estimated_depth_image = ImageUtil.fill_border(estimated_depth_image, self.__border_to_fill, 0.0)
 
-            # If we're debugging, show the depth image.
+            # Calculate how inconsistent the depth estimates are for each pixel.
+            depth_diff_image: np.ndarray = np.abs(best_depth_image - second_best_depth_image)
+
+            # If we're debugging, show the output images.
             if self.__debug:
                 cv2.imshow("Raw Estimated Depth Image", estimated_depth_image / 5)
+                cv2.imshow("Depth Inconsistency Image", depth_diff_image)
                 cv2.waitKey(1)
 
-            return estimated_depth_image
+            return estimated_depth_image, depth_diff_image
         else:
             return None
 
@@ -192,51 +214,5 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         :param intrinsics:  The 3x3 camera intrinsics matrix.
         :return:            The current object.
         """
-        self.__intrinsics = GeometryUtil.intrinsics_to_tuple(intrinsics)
         self.__multiview_depth_estimator.set_intrinsics(intrinsics)
         return self
-
-    # PRIVATE METHODS
-
-    def __postprocess_depth_image(self, depth_image: np.ndarray, tracker_w_t_c: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Try to post-process the specified depth image to reduce the amount of noise it contains.
-
-        .. note::
-            This function will return None if the input depth image does not have depth values for enough pixels.
-
-        :param depth_image:     The input depth image.
-        :param tracker_w_t_c:   The camera pose corresponding to the depth image (as a camera -> world transform).
-        :return:                The post-processed depth image, if possible, or None otherwise.
-        """
-        # Update the variables needed to perform temporal filtering.
-        self.__previous_depth_image = self.__current_depth_image
-        self.__previous_w_t_c = self.__current_w_t_c
-        self.__previous_world_points = self.__current_world_points
-
-        self.__current_depth_image = depth_image.copy()
-        self.__current_w_t_c = tracker_w_t_c.copy()
-        self.__current_world_points = GeometryUtil.compute_world_points_image_fast(
-            depth_image, tracker_w_t_c, self.__intrinsics
-        )
-
-        # If a previous depth image is available with which to perform temporal filtering:
-        if self.__previous_depth_image is not None:
-            # Remove any pixel in the current depth image that either does not have a corresponding pixel
-            # in the previous world-space points image at all, or else does not have one whose world-space
-            # point is sufficiently close to the current world-space point.
-            postprocessed_depth_image = DepthImageProcessor.remove_temporal_inconsistencies(
-                self.__current_depth_image, self.__current_w_t_c, self.__current_world_points,
-                self.__previous_depth_image, self.__previous_w_t_c, self.__previous_world_points,
-                self.__intrinsics, debug=False, distance_threshold=0.1
-            )
-
-            # Further post-process the resulting depth image using the normal approach, and then return it.
-            return DepthImageProcessor.postprocess_depth_image(
-                postprocessed_depth_image, max_depth=self.__max_depth, max_depth_difference=0.05,
-                median_filter_radius=5, min_region_size=5000, min_valid_fraction=0.0
-            )
-
-        # Otherwise, skip this depth image and wait till next time.
-        else:
-            return None
