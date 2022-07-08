@@ -18,6 +18,7 @@ setup(
         "matplotlib",
         "numpy",
         "opencv-contrib-python==3.4.2.16",
+        "smg-rigging",
         "torch",
         "torchaudio",
         "torchvision"
