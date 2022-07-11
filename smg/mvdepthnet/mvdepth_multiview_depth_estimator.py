@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
+import os
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -54,15 +55,11 @@ class MVDepthMultiviewDepthEstimator:
 
     # CONSTRUCTOR
 
-    def __init__(self, model_path: str):
-        """
-        Construct a multi-view depth estimator.
-
-        :param model_path:  The path to the MVDepthNet model.
-        """
+    def __init__(self):
+        """Construct a multi-view depth estimator."""
         # Load the MVDepthNet model.
         self.__model: depthNet = depthNet()
-        data: dict = torch.load(model_path)
+        data: dict = torch.load(os.environ.get("SMGLIB_MVDEPTH_MODEL_PATH"))
         self.__model.load_state_dict(data["state_dict"])
         self.__model = self.__model.cuda()
         cudnn.benchmark = True

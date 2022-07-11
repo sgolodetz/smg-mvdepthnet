@@ -17,14 +17,13 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
 
     # CONSTRUCTOR
 
-    def __init__(self, model_path: str, *, border_to_fill: int = 40, debug: bool = False,
+    def __init__(self, *, border_to_fill: int = 40, debug: bool = False,
                  max_depth: float = 3.0, max_rotation_before_keyframe: float = 5.0,
                  max_rotation_for_triangulation: float = 20.0, max_translation_before_keyframe: float = 0.05,
                  min_translation_for_triangulation: float = 0.025):
         """
         Construct a monocular depth estimator based on MVDepthNet that triangulates against a single keyframe.
 
-        :param model_path:                          The path to the MVDepthNet model.
         :param border_to_fill:                      The size of the border (in pixels) of the estimated depth image
                                                     that is to be filled with zeros to help mitigate depth noise.
         :param debug:                               Whether to show debug visualisations.
@@ -51,7 +50,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         self.__max_rotation_for_triangulation: float = max_rotation_for_triangulation
         self.__max_translation_before_keyframe: float = max_translation_before_keyframe
         self.__min_translation_for_triangulation: float = min_translation_for_triangulation
-        self.__multiview_depth_estimator: MVDepthMultiviewDepthEstimator = MVDepthMultiviewDepthEstimator(model_path)
+        self.__multiview_depth_estimator: MVDepthMultiviewDepthEstimator = MVDepthMultiviewDepthEstimator()
 
         # Additional variables needed to perform temporal filtering of the depth images.
         self.__current_depth_image: Optional[np.ndarray] = None
@@ -159,7 +158,7 @@ class MVDepthMonocularDepthEstimator(MonocularDepthEstimator):
         """
         return self.__keyframes
 
-    def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
+    def set_intrinsics(self, intrinsics: np.ndarray) -> MVDepthMonocularDepthEstimator:
         """
         Set the camera intrinsics.
 

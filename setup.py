@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
-# with open("README.md", "r") as fh:
-#     long_description = fh.read()
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setup(
     name="smg-mvdepthnet",
@@ -9,7 +9,7 @@ setup(
     author="Stuart Golodetz",
     author_email="stuart.golodetz@cs.ox.ac.uk",
     description="Wrapper for MVDepthNet",
-    long_description="",  #long_description,
+    long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/sgolodetz/smg-mvdepthnet",
     packages=find_packages(include=["smg.mvdepthnet", "smg.external.*"]),
@@ -18,9 +18,10 @@ setup(
         "matplotlib",
         "numpy",
         "opencv-contrib-python==3.4.2.16",
-        "torch @ https://download.pytorch.org/whl/cu101/torch-1.7.0%2Bcu101-cp37-cp37m-win_amd64.whl",
-        "torchaudio @ https://download.pytorch.org/whl/torchaudio-0.7.0-cp37-none-win_amd64.whl",
-        "torchvision @ https://download.pytorch.org/whl/cu101/torchvision-0.8.1%2Bcu101-cp37-cp37m-win_amd64.whl"
+        "smg-rigging",
+        "torch",
+        "torchaudio",
+        "torchvision"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
