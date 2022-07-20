@@ -27,9 +27,6 @@ class MVDepth2MonocularDepthEstimator(MonocularDepthEstimator):
         :param border_to_fill:                      The size of the border (in pixels) of the estimated depth image
                                                     that is to be filled with zeros to help mitigate depth noise.
         :param debug:                               Whether to show debug visualisations.
-        :param max_translation_before_keyframe:     The maximum translation (in m) there can be between the current
-                                                    position and the position of the closest keyframe without
-                                                    triggering the creation of a new keyframe.
         :param max_consistent_depth_diff:           The maximum difference there can be between the depths estimated
                                                     for a pixel by the best and second best keyframes for those depths
                                                     to be considered sufficiently consistent.
@@ -41,6 +38,9 @@ class MVDepth2MonocularDepthEstimator(MonocularDepthEstimator):
         :param max_rotation_for_triangulation:      The maximum rotation (in degrees) there can be between the look
                                                     vector of a keyframe and the current look vector for the keyframe
                                                     to be used.
+        :param max_translation_before_keyframe:     The maximum translation (in m) there can be between the current
+                                                    position and the position of the closest keyframe without
+                                                    triggering the creation of a new keyframe.
         :param min_translation_for_triangulation:   The minimum translation (in m) there can be between the position
                                                     of a keyframe and the current position for the keyframe to be used.
         """
