@@ -207,7 +207,7 @@ class MVDepth2MonocularDepthEstimator(MonocularDepthEstimator):
         """
         return self.__keyframes
 
-    def set_intrinsics(self, intrinsics: np.ndarray) -> MonocularDepthEstimator:
+    def set_intrinsics(self, intrinsics: np.ndarray) -> MVDepth2MonocularDepthEstimator:
         """
         Set the camera intrinsics.
 
