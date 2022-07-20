@@ -4,7 +4,7 @@ This Python package provides a wrapper for MVDepthNet.
 
 It is a submodule of [smglib](https://github.com/sgolodetz/smglib), the open-source Python framework associated with our drone research in the [Cyber-Physical Systems](https://www.cs.ox.ac.uk/activities/cyberphysical/) group at the University of Oxford.
 
-### Development Installation (as part of smglib)
+### Installation (as part of smglib)
 
 Note: Please read the [top-level README](https://github.com/sgolodetz/smglib/blob/master/README.md) for smglib before following these instructions.
 
@@ -32,9 +32,9 @@ Note: Please read the [top-level README](https://github.com/sgolodetz/smglib/blo
 
 8. Run `pip install -e .` at the terminal.
 
-9. Download the pre-built MVDepthNet model (`opensource_model.pth.tar`) and set (at a system level, not in the terminal) an environment variable called `SMGLIB_MVDEPTH_MODEL_PATH` that points to its location on disk.
+9. Download the pre-built MVDepthNet model (`opensource_model.pth.tar`) from [here](https://github.com/HKUST-Aerial-Robotics/MVDepthNet) and set (at a system level, not in the terminal) an environment variable called `SMGLIB_MVDEPTH_MODEL_PATH` that points to its location on disk.
 
-   (Note: It's currently unavailable from the original download site, so please contact us if you need a copy.)
+   (Note: There was an issue with the original download site that has hopefully now been resolved, but please contact us if you encounter any problems.)
 
 ### Publications
 
